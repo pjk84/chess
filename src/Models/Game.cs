@@ -51,7 +51,7 @@ public class Game : IChessGame
     public void LoadGame(string fileName)
     {
         {
-            using (StreamReader r = new StreamReader($"games/{fileName}.json"))
+            using (StreamReader r = new StreamReader($"savegames/{fileName}.json"))
             {
                 var saveGame = JsonSerializer.Deserialize<SaveGame>(r.ReadToEnd(), new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
                 _board = new Board(JsonSerializer.Serialize(saveGame.Squares));
