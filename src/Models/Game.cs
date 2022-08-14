@@ -18,6 +18,8 @@ public class Game : IChessGame
 
     public string? Checked { get; private set; } = null;
 
+    public bool[] Castled { get; } = { false, false };
+
     public IChessPiece? Promotee { get; private set; }
 
     private Board _board;
@@ -64,7 +66,7 @@ public class Game : IChessGame
     public void SaveGame(string fileName)
     {
         var saveGame = new SaveGame(_board.Squares, Turns, _activeColor);
-        File.WriteAllText($"games/{fileName}.json", JsonSerializer.Serialize(saveGame));
+        File.WriteAllText($"savegames/{fileName}.json", JsonSerializer.Serialize(saveGame));
 
     }
 
@@ -108,10 +110,12 @@ public class Game : IChessGame
 
     public string PrintBoard(string? msg)
     {
+
         if (msg is not null)
         {
             msg = "-- " + msg;
         }
+        Console.WriteLine(JsonSerializer.Serialize(_board.GetSquareByAddress("e1")));
         return $"\n\n{_board.PrintBoard(_activeColor, _presentation)}\n\n{msg}";
     }
 
@@ -140,6 +144,42 @@ public class Game : IChessGame
     {
         // computer move
 
+    }
+
+    // attempt castling of rook at address
+    public void Castle(string address)
+    {
+        if (Castled[_activeColor])
+        {
+            throw new Exception("Already castled. Each side may only castle once.");
+        }
+        var rookSquare = _board.GetSquareByAddress(address);
+        var rook = rookSquare.Piece;
+        if (rook is null)
+        {
+            throw new Exception("no piece at address");
+        }
+        if (rook.Type != PieceType.R)
+        {
+            throw new Exception($"Piece at {address} not of type R");
+        }
+        if (rook.Color != _activeColor)
+        {
+            throw new Exception("R not owned by player");
+        }
+        var kingSquare = _board.GetSquareByAddress(_board.Kings[_activeColor].Address);
+        var direction = kingSquare.File - rookSquare.File < 0 ? 1 : -1;
+        if (rookSquare.Rank != kingSquare.Rank)
+        {
+            throw new Exception("Castling only allowed on same rank");
+        }
+        if (Math.Abs(kingSquare.File - rookSquare.File) < 3)
+        {
+            throw new Exception("R and K must be at least 2 squares apart");
+        }
+        _board.MakeMove(kingSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 2 * direction], kingSquare.Piece!);
+        _board.MakeMove(rookSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction], kingSquare.Piece!);
+        Castled[_activeColor] = true;
     }
 
     // check if king at either side is checked
@@ -199,77 +239,48 @@ public class Game : IChessGame
         }
     }
 
-    public string? MakeMove(string move)
+    public void MakeMove(string move)
     {
-        string? err = null;
-        string? msg = null;
+
+        IChessMove? parsed = null;
+
+        Capture? capture = null;
+        parsed = ParseMove(move);
+        var piece = parsed.From.Piece!;
         try
         {
-            IChessMove? parsed = null;
-            try
+            _board.ValidateMove(parsed, _activeColor);
+            if (parsed.To.Piece is not null)
             {
-                Capture? capture = null;
-                parsed = ParseMove(move);
-                var piece = parsed.From.Piece!;
-                try
-                {
-                    _board.ValidateMove(parsed, _activeColor);
-                    if (parsed.To.Piece is not null)
-                    {
-                        // capture at destination square
-                        capture = new Capture(parsed.To.Piece, parsed.To.Address);
-
-                    }
-                }
-
-                catch (CollisionError e)
-                {
-                    var blocker = e.Square.Piece!;
-                    // en passant move.
-                    if (e.Mover.Type == PieceType.P)
-                    {
-                        // capture in passing
-                        capture = new Capture(blocker, e.Square.Address);
-                        e.Square.Update(null);
-                    }
-                    // castling
-                    if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
-                    {
-                        // ..
-                    }
-                }
-                _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
-                Turns.Add(new Turn(move, piece, capture));
-
-                DetectCheck();
-
-                DetectPromotion(parsed);
-
+                // capture at destination square
+                capture = new Capture(parsed.To.Piece, parsed.To.Address);
 
             }
-            catch (MovementError e)
-            {
-                throw new Exception($"move is invalid for piece of type {e.Type}. {e.Message}");
-            }
-            catch (CheckError e)
-            {
-                err = $"{(e.Color == 0 ? "wK" : "bK")} checked by {e.Offender} at {e.Address} ";
-            }
-            catch (MoveParseError)
-            {
-                err = "invalid move format. Move must be formatted as <from>-<to>. Example: a2-a3";
-            }
-            catch (AddressParseError e)
-            {
-                err = $"invalid address '{e.Address}'";
-            }
-
         }
-        catch (Exception e)
+
+        catch (CollisionError e)
         {
-            err = $"{e.Message}\n";
+            var blocker = e.Square.Piece!;
+            // en passant move.
+            if (e.Mover.Type == PieceType.P)
+            {
+                // capture in passing
+                capture = new Capture(blocker, e.Square.Address);
+                e.Square.Update(null);
+            }
+            // castling
+            if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
+            {
+                // ..
+            }
+            throw new Exception(e.Message);
         }
-        return err is null ? msg : $"illegal move: {err}\n";
+        _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
+        Turns.Add(new Turn(move, piece, capture));
+
+        DetectCheck();
+
+        DetectPromotion(parsed);
     }
 
     public void Quit()

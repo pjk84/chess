@@ -13,7 +13,6 @@ public class Piece : IChessPiece
 
     public int Color { get; init; }
 
-
     private IChessMove[] Moves { get; } = { };
 
     public Piece(int id, int color, PieceType type)
@@ -140,4 +139,21 @@ public class Piece : IChessPiece
     }
 
 }
+
+
+public record King
+{
+    public int Color { get; init; }
+
+    public string Address { get; set; }
+
+    public bool Checked { get; set; }
+    public King(int color, bool isChecked, string address)
+    {
+        Color = color;
+        Checked = isChecked;
+        Address = address;
+    }
+}
+
 

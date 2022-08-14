@@ -15,6 +15,8 @@ class CollisionError : Exception, ICollisonError
 
 class MoveParseError : Exception { }
 
+
+
 class CheckError : Exception
 {
     public int Color { get; init; }

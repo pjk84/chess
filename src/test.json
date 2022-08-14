@@ -10,19 +10,19 @@
       "Rank": 0,
       "File": 1,
       "Color": 0,
-      "Piece": { "Id": 28, "Type": 3, "Color": 0 }
+      "Piece": null
     },
     {
       "Rank": 0,
       "File": 2,
       "Color": 1,
-      "Piece": { "Id": 26, "Type": 5, "Color": 0 }
+      "Piece": null
     },
     {
       "Rank": 0,
       "File": 3,
       "Color": 0,
-      "Piece": { "Id": 25, "Type": 2, "Color": 0 }
+      "Piece": null
     },
     {
       "Rank": 0,
@@ -34,13 +34,13 @@
       "Rank": 0,
       "File": 5,
       "Color": 0,
-      "Piece": { "Id": 27, "Type": 5, "Color": 0 }
+      "Piece": null
     },
     {
       "Rank": 0,
       "File": 6,
       "Color": 1,
-      "Piece": { "Id": 29, "Type": 3, "Color": 0 }
+      "Piece": null
     },
     {
       "Rank": 0,

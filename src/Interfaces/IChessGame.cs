@@ -9,16 +9,21 @@ public interface IChessGame
     public string? Checked { get; }
     public IChessPiece? Promotee { get; }
 
+    public bool[] Castled { get; }
+
     public List<Turn> Turns { get; }
 
     public string PrintBoard(string? msg);
 
     public string PrintTurns();
 
+    public void Castle(string address);
+
     public void SaveGame(string fileName);
+
     public void LoadGame(string fileName);
 
-    public string? MakeMove(string move);
+    public void MakeMove(string move);
 
     public void PromotePiece(IChessPiece piece, PieceType type);
 

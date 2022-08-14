@@ -7,7 +7,6 @@ namespace Chess.Models;
 public class Board : IChessboard
 {
     public Square[][] Squares { get; private set; }
-
     public King[] Kings { get; private set; } = { new King(0, false, "e1"), new King(1, false, "e8") };
     private Dictionary<string, string> Pieces;
     public Board(string squares)
@@ -31,6 +30,7 @@ public class Board : IChessboard
         Squares = Deserialize(squares);
     }
 
+
     private Square[][] Deserialize(string squares)
     {
         var deserialized = JsonSerializer.Deserialize<Square[][]>(squares, new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
@@ -48,6 +48,7 @@ public class Board : IChessboard
 
     public IChessSquare GetSquareByAddress(string address)
     {
+        Console.WriteLine(address);
         address = address.ToLower();
         var files = "abcdefgh";
         if (address.Length != 2)
@@ -82,6 +83,7 @@ public class Board : IChessboard
 
             foreach (var square in rank)
             {
+                var piece = square.Piece;
                 var line = "│";
                 if (square.File == 0)
                 {
@@ -90,12 +92,12 @@ public class Board : IChessboard
                 }
                 if (presentation == 0)
                 {
-                    s += $"{(square.Piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line} {Pieces[$"{square.Piece.Type}{square.Piece.Color}"]} ")}";
+                    s += $"{(piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line} {Pieces[$"{piece.Type}{piece.Color}"]} ")}";
                 }
                 else
                 {
 
-                    s += $"{(square.Piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line}{square.Piece.Type}{(square.Piece.Color == 0 ? "w" : "b")} ")}";
+                    s += $"{(piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line}{piece.Type}{(piece.Color == 0 ? "w" : "b")} ")}";
                 }
                 // s += $"_{square.Color}_";
                 if (square.File == 7)
@@ -304,47 +306,4 @@ public class Board : IChessboard
     }
 }
 
-public record Square : IChessSquare
-{
 
-    public int Rank { get; init; }
-    public int File { get; init; }
-    public int Color { get; init; }
-
-    public string Address { get; init; } // string representation of square
-
-    public Piece? Piece { get; private set; } = null;
-
-    public void Update(Piece? piece)
-    {
-        Piece = piece;
-    }
-
-    public Square(int file, int rank, Piece piece)
-    {
-
-        Rank = rank;
-        File = file;
-        Piece = piece;
-        Color = (file + rank) % 2 == 0 ? 1 : 0;
-        var files = "abcdefgh";
-        Address = $"{files[file]}{rank + 1}";
-    }
-}
-
-
-
-public record King
-{
-    public int Color { get; init; }
-
-    public string Address { get; set; }
-
-    public bool Checked { get; set; }
-    public King(int color, bool isChecked, string address)
-    {
-        Color = color;
-        Checked = isChecked;
-        Address = address;
-    }
-}

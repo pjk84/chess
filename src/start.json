@@ -28,7 +28,7 @@
       "Rank": 0,
       "File": 4,
       "Color": 1,
-      "Piece": { "Id": 24, "Type": 1, "Color": 0 }
+      "Piece": { "Id": 24, "Type": 1, "Color": 0, "threatened": false }
     },
     {
       "Rank": 0,

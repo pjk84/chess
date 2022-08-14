@@ -29,6 +29,18 @@ class Demo
             {
                 continue;
             }
+            if (inp == "castle")
+            {
+                Console.WriteLine("which R do you want to castle?");
+                string? address = Console.ReadLine()?.ToLower();
+                if (address is null)
+                {
+                    continue;
+                }
+                game.Castle(address);
+                print("castled");
+                continue;
+            }
             if (inp == "load")
             {
                 string[] files = Directory.GetFiles(@"games", "*.json");
@@ -127,7 +139,7 @@ class Demo
                 print(null);
                 continue;
             }
-            msg = game.MakeMove(inp);
+
             if (game.Checked is not null)
             {
                 msg += $"player {game.Checked} is checked";
@@ -168,7 +180,31 @@ class Demo
                     }
                 }
             }
-            game.SwitchTurns();
+            try
+            {
+                game.MakeMove(inp);
+                game.SwitchTurns();
+            }
+            catch (MovementError e)
+            {
+                msg = $"move is invalid for piece of type {e.Type}. {e.Message}";
+            }
+            catch (CheckError e)
+            {
+                msg = $"{(e.Color == 0 ? "Kw" : "Kb")} checked by {e.Offender} at {e.Address} ";
+            }
+            catch (MoveParseError)
+            {
+                msg = "invalid move format. Move must be formatted as <from>-<to>. Example: a2-a3";
+            }
+            catch (AddressParseError e)
+            {
+                msg = $"invalid address '{e.Address}'";
+            }
+            catch (Exception e)
+            {
+                msg = $"{e.Message}\n";
+            }
             print(msg);
 
         }
@@ -178,7 +214,5 @@ class Demo
 
 
 //todo 
-
 // checkmate
-// pawn promotion
-// castling
+// undo castling move
