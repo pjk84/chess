@@ -1,6 +1,6 @@
 
 using Chess.Interfaces;
-using System.Linq;
+using Mindmagma.Curses;
 using System.Text.Json;
 
 namespace Chess.Models;
@@ -8,6 +8,12 @@ namespace Chess.Models;
 
 public class Game : IChessGame
 {
+    private IntPtr _win;
+
+    public string? Cursor { get; private set; } = null;
+
+    public string? PieceSelectedAt { get; private set; }
+    public string? PieceReleasedAt { get; private set; }
 
     private int _activeColor = 0;
     private int _playerColor;
@@ -20,30 +26,37 @@ public class Game : IChessGame
 
     public bool[] Castled { get; } = { false, false };
 
-    public IChessPiece? Promotee { get; private set; }
+
+    public Piece? Promotee { get; set; }
 
     private Board _board;
     public bool IsPlaying { get; private set; }
 
-    public List<Turn> Turns { get; private set; } = new List<Turn> { };
+    public List<Action> Actions { get; private set; } = new List<Action> { };
     public Game()
     {
         _board = NewBoard();
-        IsPlaying = true;
-        _playerColor = 0;
+        Setup();
     }
 
-    public void Restart()
+    public void Setup()
     {
-        Turns = new List<Turn> { };
-        _board = NewBoard();
+        IsPlaying = true;
+        _playerColor = 0;
+        Actions = new List<Action> { };
         _activeColor = 0;
+        _win = NCurses.InitScreen();
+        NCurses.NoDelay(_win, true);
+        NCurses.NoEcho();
+        NCurses.Keypad(_win, true);
+        NCurses.StartColor();
     }
+
 
     private Board NewBoard()
     {
         {
-            using (StreamReader r = new StreamReader("test.json"))
+            using (StreamReader r = new StreamReader("start.json"))
             {
                 return new Board(r.ReadToEnd());
             }
@@ -58,39 +71,74 @@ public class Game : IChessGame
                 var saveGame = JsonSerializer.Deserialize<SaveGame>(r.ReadToEnd(), new JsonSerializerOptions() { PropertyNameCaseInsensitive = true });
                 _board = new Board(JsonSerializer.Serialize(saveGame.Squares));
                 _activeColor = saveGame.ActiveColor;
-                Turns = saveGame.Turns;
+                Actions = saveGame.Actions;
             }
         }
     }
 
     public void SaveGame(string fileName)
     {
-        var saveGame = new SaveGame(_board.Squares, Turns, _activeColor);
+        var saveGame = new SaveGame(_board.Squares, Actions, _activeColor);
         File.WriteAllText($"savegames/{fileName}.json", JsonSerializer.Serialize(saveGame));
 
     }
 
-    public void UndoTurn()
+    public void SetCursor(string key)
     {
-        if (Turns.Count == 0)
+
+    }
+
+
+    public void SelectPiece()
+    {
+        // var letter = "abcdefgh";
+        // PieceSelectedAt = $"{letter[CursorX]}{CursorY + 1}";
+    }
+
+    public void ReleasePiece()
+    {
+        //     var letter = "abcdefgh";
+        //     PieceReleasedAt = $"{letter[CursorX]}{CursorY + 1}";
+
+        //     // piece not moved
+        //     if (PieceReleasedAt != PieceSelectedAt)
+        //     {
+        //         MakeMove($"{PieceSelectedAt}-{PieceReleasedAt}");
+        //     }
+        //     PieceReleasedAt = null;
+        //     PieceSelectedAt = null;
+    }
+
+    public void UndoAction()
+    {
+        if (Actions.Count == 0)
         {
             throw new Exception("no moves found");
         }
         // revert last move
-        var lastTurn = Turns.Last();
-        var parsed = ParseMove(lastTurn.Move);
-        parsed.Revert();
-        _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
-        if (lastTurn.Capture is not null)
+        var lastAction = Actions.Last();
+        // if (lastTurn.castling.HasValue)
+        // {
+        //     RevertCastling();
+        //     return;
+        // }
+        if (lastAction.Move is not null)
+        {
+            var parsed = ParseMove(lastAction.Move);
+            parsed.Revert();
+            _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
+        }
+        if (lastAction.Capture is not null)
         {
             // get the square at which the piece was captured
-            var square = _board.GetSquareByAddress(lastTurn.Capture.Address);
+            var square = _board.GetSquareByAddress(lastAction.Capture.Address);
 
             // re-populate square with piece
-            square.Update(lastTurn.Capture.Piece);
+            square.Update(lastAction.Capture.Piece);
         }
-        Turns.RemoveAt(Turns.Count() - 1);
+        Actions.RemoveAt(Actions.Count() - 1);
         SwitchTurns();
+
     }
 
     // parse string presentation 'A1:A2' to move
@@ -108,25 +156,21 @@ public class Game : IChessGame
         return new Move(_board.GetSquareByAddress(addresses[0]), _board.GetSquareByAddress(addresses[1]));
     }
 
-    public string PrintBoard(string? msg)
+    public void PrintBoard(string? msg)
     {
-
-        if (msg is not null)
-        {
-            msg = "-- " + msg;
-        }
-        Console.WriteLine(JsonSerializer.Serialize(_board.GetSquareByAddress("e1")));
-        return $"\n\n{_board.PrintBoard(_activeColor, _presentation)}\n\n{msg}";
+        NCurses.ClearWindow(_win);
+        _board.PrintBoard(_win, Cursor, msg);
+        NCurses.Refresh();
     }
 
     public string PrintTurns()
     {
         var s = "\nmoves:\n";
         string? capture = null;
-        foreach (var turn in Turns)
+        foreach (var action in Actions)
         {
-            capture = turn.Capture is not null ? $"x{turn.Capture.Piece.Type}" : null;
-            s += $"{(turn.Piece.Color == 0 ? "w" : "b")}{turn.Piece.Type} {turn.Move}{capture}\n";
+            capture = action.Capture is not null ? $"x{action.Capture.Piece.Type}" : null;
+            s += $"{(action.Piece.Color == 0 ? "w" : "b")}{action.Piece.Type} {action.Move}{capture}\n";
         }
         return s;
     }
@@ -146,6 +190,18 @@ public class Game : IChessGame
 
     }
 
+    private void RevertCastling()
+    {
+        // var lastMove = Events.Last();
+        // var color = lastMove.Piece.Color;
+        // var castlingMoves = from e in Events
+        //                     where e.Piece.Color == color && e.castling.HasValue
+        //                     select e;
+        // var kingStartingSquare = _board.GetSquareByAddress(color == 0 ? "e1" : "e8");
+        // var kingCurrentSquare = _board.GetSquareByAddress(_board.Kings[color].Address);
+        // _board.MakeMove(kingCurrentSquare, kingStartingSquare, kingCurrentSquare.Piece!);
+    }
+
     // attempt castling of rook at address
     public void Castle(string address)
     {
@@ -155,30 +211,65 @@ public class Game : IChessGame
         }
         var rookSquare = _board.GetSquareByAddress(address);
         var rook = rookSquare.Piece;
-        if (rook is null)
+        if (rook?.Type != PieceType.R)
         {
-            throw new Exception("no piece at address");
+            throw new Exception("Castling only allowed with R");
         }
-        if (rook.Type != PieceType.R)
+        var rookMoves = from e in Actions where e.Piece.Id == rook.Id select e;
+        if (rookMoves.Count() > 0)
         {
-            throw new Exception($"Piece at {address} not of type R");
+            throw new Exception("R has already moved. Castling not allowed.");
         }
-        if (rook.Color != _activeColor)
-        {
-            throw new Exception("R not owned by player");
-        }
+
         var kingSquare = _board.GetSquareByAddress(_board.Kings[_activeColor].Address);
+        var king = kingSquare.Piece!;
+        var kingMoves = from e in Actions where e.Piece.Id == king.Id select e;
+        if (kingMoves.Count() > 0)
+        {
+            throw new Exception("K has already moved. Castling not allowed.");
+        }
         var direction = kingSquare.File - rookSquare.File < 0 ? 1 : -1;
+
+        // basic validation
+        var rookMove = new Move(rookSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction]);
+        _board.ValidateMove(rookMove, _activeColor);
+
         if (rookSquare.Rank != kingSquare.Rank)
         {
             throw new Exception("Castling only allowed on same rank");
         }
-        if (Math.Abs(kingSquare.File - rookSquare.File) < 3)
+        string newAddress;
+        Square? to;
+        var steps = Enumerable.Range(1, 2);
+        // move king
+        foreach (var step in steps)
         {
-            throw new Exception("R and K must be at least 2 squares apart");
+            var from = _board.Squares[kingSquare.Rank][kingSquare.File + (step - 1) * direction];
+            to = _board.Squares[kingSquare.Rank][kingSquare.File + step * direction];
+            newAddress = $"{from.Address}-{to.Address}";
+            _board.MakeMove(from, to, king);
+            Actions.Add(new Action(king, $"{from.Address}-{to.Address}", null, null, true));
+            var check = _board.EvaluateCheck();
+            if (check.HasValue)
+            {
+                if (check.Value.color == _activeColor)
+                {
+                    foreach (var i in Enumerable.Range(0, step))
+                    {
+                        RevertCastling();
+                    }
+                    throw new Exception($"Castling under check not allowed. K checked by {check.Value.square.Piece!.Type} at {check.Value.square.Address} ");
+                }
+                _board.Kings[_activeColor].Address = to.Address;
+            }
+
         }
-        _board.MakeMove(kingSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 2 * direction], kingSquare.Piece!);
-        _board.MakeMove(rookSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction], kingSquare.Piece!);
+        // move rook
+        to = _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction];
+        _board.MakeMove(rookSquare, to, rook);
+        newAddress = $"{rookSquare.Address}-{to.Address}";
+        Actions.Add(new Action(rook, $"{rookSquare.Address}-{to.Address}", null, null, true));
+
         Castled[_activeColor] = true;
     }
 
@@ -199,16 +290,10 @@ public class Game : IChessGame
         var color = check.Value.color;
         if (color == _activeColor)
         {
-            UndoTurn();
+            UndoAction();
             SwitchTurns();
             throw new CheckError(color, offender.Address, offender.Piece!.Type);
         }
-    }
-
-    public void PromotePiece(IChessPiece piece, PieceType promoteTo)
-    {
-        piece.Promote(promoteTo);
-        Promotee = null;
     }
 
     public void DetectPromotion(IChessMove move)
@@ -276,7 +361,7 @@ public class Game : IChessGame
             throw new Exception(e.Message);
         }
         _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
-        Turns.Add(new Turn(move, piece, capture));
+        Actions.Add(new Action(piece, move, capture, null, false));
 
         DetectCheck();
 
@@ -290,7 +375,7 @@ public class Game : IChessGame
 }
 
 
-public record struct SaveGame(Square[][] Squares, List<Turn> Turns, int ActiveColor) { }
+public record struct SaveGame(Square[][] Squares, List<Action> Actions, int ActiveColor) { }
 
 
 

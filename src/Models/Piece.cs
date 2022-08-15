@@ -9,7 +9,7 @@ namespace Chess.Models;
 public class Piece : IChessPiece
 {
     public int Id { get; init; }
-    public PieceType Type { get; private set; }
+    public PieceType Type { get; set; }
 
     public int Color { get; init; }
 
@@ -22,10 +22,6 @@ public class Piece : IChessPiece
         Type = type;
     }
 
-    public void Promote(PieceType type)
-    {
-        Type = type;
-    }
 
     // pattern and behavior validation
     // Does not account for board level bounds or collisions

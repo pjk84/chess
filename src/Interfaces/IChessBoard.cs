@@ -14,10 +14,13 @@ public interface IChessboard
 
     public string Serialize();
 
+
     public IChessSquare GetSquareByAddress(string address);
 
-    public string PrintBoard(int activeColor, int presentation);
+    public string PrintBoard(IntPtr window, string cursor, string? msg);
     public (int color, Square square)? EvaluateCheck();
+
+    public Square[] Slice(IChessMove move);
 
 
 }

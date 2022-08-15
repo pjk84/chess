@@ -3,19 +3,30 @@ namespace Chess.Interfaces;
 
 public interface IChessGame
 {
+    public string? Cursor { get; }
+
+    public string? PieceSelectedAt { get; }
+
+    public string? PieceReleasedAt { get; }
 
     public bool IsPlaying { get; }
 
     public string? Checked { get; }
-    public IChessPiece? Promotee { get; }
+    public Piece? Promotee { get; set; }
 
     public bool[] Castled { get; }
 
-    public List<Turn> Turns { get; }
+    public List<Action> Actions { get; }
 
-    public string PrintBoard(string? msg);
+    public void PrintBoard(string? msg);
 
     public string PrintTurns();
+
+    public void SetCursor();
+
+    public void SelectPiece();
+
+    public void ReleasePiece();
 
     public void Castle(string address);
 
@@ -25,11 +36,9 @@ public interface IChessGame
 
     public void MakeMove(string move);
 
-    public void PromotePiece(IChessPiece piece, PieceType type);
+    public void UndoAction();
 
-    public void UndoTurn();
-
-    public void Restart();
+    public void Setup();
 
     public void SwitchTurns();
 

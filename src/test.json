@@ -66,7 +66,7 @@
       "Rank": 1,
       "File": 2,
       "Color": 0,
-      "Piece": { "Id": 18, "Type": 0, "Color": 0 }
+      "Piece": { "Id": 101, "Type": 5, "Color": 1 }
     },
     {
       "Rank": 1,
@@ -111,7 +111,7 @@
       "Rank": 2,
       "File": 2,
       "Color": 1,
-      "Piece": { "Id": 101, "Type": 5, "Color": 1 }
+      "Piece": null
     },
     { "Rank": 2, "File": 3, "Color": 0, "Piece": null },
     { "Rank": 2, "File": 4, "Color": 1, "Piece": null },

@@ -2,10 +2,18 @@
 using Chess.Interfaces;
 using System.Text.Json;
 namespace Chess.Models;
+using Mindmagma.Curses;
 
 
 public class Board : IChessboard
 {
+
+    private string _letters = "abcdefgh";
+    private int _offsetX = 10;
+    private int _offsetY = 2;
+    private int _squareSize = 6;
+    private int _edgeWidth = 4;
+
     public Square[][] Squares { get; private set; }
     public King[] Kings { get; private set; } = { new King(0, false, "e1"), new King(1, false, "e8") };
     private Dictionary<string, string> Pieces;
@@ -46,9 +54,9 @@ public class Board : IChessboard
         return JsonSerializer.Serialize(Squares);
     }
 
+
     public IChessSquare GetSquareByAddress(string address)
     {
-        Console.WriteLine(address);
         address = address.ToLower();
         var files = "abcdefgh";
         if (address.Length != 2)
@@ -69,52 +77,112 @@ public class Board : IChessboard
         return Squares[rank - 1][file];
     }
 
-    public string PrintBoard(int activeColor, int presentation)
+    public string PrintBoard(IntPtr window, string? cursor, string? msg)
     {
+        NCurses.MoveWindowAddString(window, 0, _offsetX, $"{cursor}");
+        if (msg is not null)
+        {
+            NCurses.MoveWindowAddString(window, 0, _offsetX, msg);
+        }
+        int boardWidth = _squareSize * 8 + (_edgeWidth * 2);
+        var boardHeight = ((_squareSize * 8) / 2) + _edgeWidth;
+        var emptySquareH = string.Concat(Enumerable.Repeat(" ", _squareSize));
+
         var s = "";
         var i = 0;
+
+        string boarderChunkHorizontal = string.Concat(Enumerable.Repeat(" ", _edgeWidth));
+
+        // left corner chunk
+        var boarderFiles = boarderChunkHorizontal;
+        var boarderHClear = string.Concat(Enumerable.Repeat(" ", boardWidth));
+        string boarderV = string.Concat(Enumerable.Repeat(" ", _edgeWidth));
         foreach (var rank in Squares.Reverse())
         {
+            // print left and right boarder
             if (i == 0)
             {
-                s += "    a   b   c   d   e   f   g   h\n";
-                s += $"  ┏━━━┯━━━┯━━━┯━━━┯━━━┯━━━┯━━━┯━━━┓ {(activeColor == 1 ? "<- B" : null)} \n";
-            }
-
-            foreach (var square in rank)
-            {
-                var piece = square.Piece;
-                var line = "│";
-                if (square.File == 0)
-                {
-                    s += $"{8 - i} ";
-                    line = "┃";
-                }
-                if (presentation == 0)
-                {
-                    s += $"{(piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line} {Pieces[$"{piece.Type}{piece.Color}"]} ")}";
-                }
-                else
-                {
-
-                    s += $"{(piece is null ? $"{line}{(square.Color == 0 ? "╳╳╳" : "   ")}" : $"{line}{piece.Type}{(piece.Color == 0 ? "w" : "b")} ")}";
-                }
-                // s += $"_{square.Color}_";
-                if (square.File == 7)
-                {
-                    s += $"┃ {square.Rank}\n";
-                }
-
+                NCurses.AttributeOn(NCurses.ColorPair(3));
+                NCurses.MoveWindowAddString(window, 1 + _offsetY, 0 + _offsetX, boarderHClear);
             }
             if (i == 7)
             {
-                s += $"  ┗━━━┷━━━┷━━━┷━━━┷━━━┷━━━┷━━━┷━━━┛ {(activeColor == 0 ? "<- W" : null)}\n";
-                s += "    a   b   c   d   e   f   g   h";
+
+                NCurses.AttributeOn(NCurses.ColorPair(3));
+                NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2) + _offsetY, 0 + _offsetX, boarderHClear);
             }
-            else
+
+            var file = 0;
+            foreach (var square in rank)
             {
-                s += "  ┣───┼───┼───┼───┼───┼───┼───┼───┫\n";
+                var squareColor = square.Address == cursor ? 4 : square.Color + 1;
+                if (i == 0)
+                {
+                    boarderFiles += $"  {_letters[file]}   ";
+                    if (file == 7)
+                    {
+                        // add right corner chunk to finish the row
+                        boarderFiles += boarderChunkHorizontal;
+                        NCurses.AttributeOn(NCurses.ColorPair(3));
+                        NCurses.MoveWindowAddString(window, 0 + _offsetY, 0 + _offsetX, boarderFiles);
+                    }
+                }
+                if (i == 7)
+                {
+                    if (file == 7)
+                    {
+                        NCurses.AttributeOn(NCurses.ColorPair(3));
+                        NCurses.MoveWindowAddString(window, (boardHeight + 1 - _edgeWidth / 2) + _offsetY, 0 + _offsetX, boarderFiles);
+                    }
+                }
+                var boarderNumeralOffsetY = (i * _squareSize / 2 + (_edgeWidth / 2 + 1)) + _offsetY;
+                var SquareOffsetX = file * _squareSize + _edgeWidth + _offsetX;
+                var RightBoarderOffsetX = (8 * _squareSize) + _offsetX + _edgeWidth;
+                var piece = square.Piece is not null ? $"{(square.Piece.Color == 0 ? "w" : "b")}{square.Piece.Type}" : "  ";
+                foreach (var h in Enumerable.Range(1, 3))
+                {
+
+                    // draw left boarder with numeral
+                    if (file == 0)
+                    {
+                        NCurses.AttributeOn(NCurses.ColorPair(3));
+                        if (h == 2)
+                        {
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, _offsetX, $" {8 - i}  ");
+                        }
+                        else
+                        {
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), _offsetX, boarderV);
+                        }
+                    }
+
+                    // draw right boarder with numeral
+                    if (file == 7)
+                    {
+                        NCurses.AttributeOn(NCurses.ColorPair(3));
+                        if (h == 2)
+                        {
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, RightBoarderOffsetX, $"  {8 - i} ");
+                        }
+                        else
+                        {
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), RightBoarderOffsetX, boarderV);
+
+                        }
+                    }
+                    NCurses.AttributeOn(NCurses.ColorPair(squareColor));
+                    if (h == 2)
+                    {
+                        NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, SquareOffsetX, $"  {piece}  ");
+                    }
+                    else
+                    {
+                        NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1) + _offsetY, SquareOffsetX, emptySquareH);
+                    }
+                }
+                file++;
             }
+
 
             i++;
         }
@@ -194,7 +262,7 @@ public class Board : IChessboard
 
         if (move.From.Piece.Color != activeColor)
         {
-            throw new Exception($"piece at {move.From.Address} is not owned by player {(activeColor == 0 ? "white" : "black")}");
+            throw new Exception($"{move.From.Piece.Type} at {move.From.Address} is not owned by player {(activeColor == 0 ? "white" : "black")}");
         }
 
         if (move.To.Piece?.Color == activeColor)
@@ -238,7 +306,7 @@ public class Board : IChessboard
     }
 
     // return single array of squares by move direction
-    private Square[] Slice(IChessMove move)
+    public Square[] Slice(IChessMove move)
     {
         var slice = Enumerable.Empty<Square>();
         int[] range = { };
@@ -296,6 +364,7 @@ public class Board : IChessboard
         to.Update(piece);
 
         from.Update(null);
+
 
         if (piece.Type == PieceType.K)
         {
