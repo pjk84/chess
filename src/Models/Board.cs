@@ -14,6 +14,11 @@ public class Board : IChessboard
     private int _squareSize = 6;
     private int _edgeWidth = 4;
 
+    private int _bottomMargin = 4;
+
+    public int BoardHeight { get; init; }
+    public int boardWidth { get; init; }
+
     public Square[][] Squares { get; private set; }
     public King[] Kings { get; private set; } = { new King(0, false, "e1"), new King(1, false, "e8") };
     private Dictionary<string, string> Pieces;
@@ -36,6 +41,8 @@ public class Board : IChessboard
         };
 
         Squares = Deserialize(squares);
+        BoardHeight = _offsetY + ((_squareSize / 2) * 8) + _edgeWidth + _bottomMargin;
+        boardWidth = _offsetX + (_squareSize * 8) + _edgeWidth * 2;
     }
 
 
@@ -77,18 +84,14 @@ public class Board : IChessboard
         return Squares[rank - 1][file];
     }
 
-    public string PrintBoard(IntPtr window, string? cursor, string? msg)
+    public void PrintBoard(IntPtr window, int activeColor, string cursor, string? lastMove, string? msg, IChessPiece? selectedPiece)
     {
-        NCurses.MoveWindowAddString(window, 0, _offsetX, $"{cursor}");
-        if (msg is not null)
-        {
-            NCurses.MoveWindowAddString(window, 0, _offsetX, msg);
-        }
+
+
         int boardWidth = _squareSize * 8 + (_edgeWidth * 2);
         var boardHeight = ((_squareSize * 8) / 2) + _edgeWidth;
         var emptySquareH = string.Concat(Enumerable.Repeat(" ", _squareSize));
 
-        var s = "";
         var i = 0;
 
         string boarderChunkHorizontal = string.Concat(Enumerable.Repeat(" ", _edgeWidth));
@@ -115,7 +118,8 @@ public class Board : IChessboard
             var file = 0;
             foreach (var square in rank)
             {
-                var squareColor = square.Address == cursor ? 4 : square.Color + 1;
+                var activeSquare = square.Address == cursor;
+                var squareColor = activeSquare ? 4 : square.Color + 1;
                 if (i == 0)
                 {
                     boarderFiles += $"  {_letters[file]}   ";
@@ -138,7 +142,17 @@ public class Board : IChessboard
                 var boarderNumeralOffsetY = (i * _squareSize / 2 + (_edgeWidth / 2 + 1)) + _offsetY;
                 var SquareOffsetX = file * _squareSize + _edgeWidth + _offsetX;
                 var RightBoarderOffsetX = (8 * _squareSize) + _offsetX + _edgeWidth;
-                var piece = square.Piece is not null ? $"{(square.Piece.Color == 0 ? "w" : "b")}{square.Piece.Type}" : "  ";
+                var piece = activeSquare ? selectedPiece ?? square.Piece : square.Piece;
+                var pieceNotation = "  ";
+                if (piece is not null)
+                {
+                    pieceNotation = $"{(piece.Color == 0 ? "w" : "b")}{piece.Type}";
+                    if (!activeSquare && piece.Id == selectedPiece?.Id)
+                    {
+                        pieceNotation = "  ";
+                    }
+                }
+
                 foreach (var h in Enumerable.Range(1, 3))
                 {
 
@@ -173,20 +187,27 @@ public class Board : IChessboard
                     NCurses.AttributeOn(NCurses.ColorPair(squareColor));
                     if (h == 2)
                     {
-                        NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, SquareOffsetX, $"  {piece}  ");
+                        NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, SquareOffsetX, $"  {pieceNotation}  ");
                     }
                     else
                     {
                         NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1) + _offsetY, SquareOffsetX, emptySquareH);
                     }
                 }
+
                 file++;
             }
 
 
             i++;
         }
-        return s;
+        NCurses.AttributeOff(NCurses.ColorPair(1));
+        NCurses.AttributeOff(NCurses.ColorPair(2));
+        if (msg is not null)
+        {
+            NCurses.MoveWindowAddString(window, BoardHeight - 2, _offsetX, msg);
+        }
+        NCurses.MoveWindowAddString(window, BoardHeight - 1, _offsetX, $"{(activeColor == 0 ? "White" : "Black")} is playing{(lastMove is not null ? $", last move was {lastMove}" : null)}");
     }
 
     private void MoveIsWithinBounds(IChessSquare target)

@@ -10,10 +10,13 @@ public class Game : IChessGame
 {
     private IntPtr _win;
 
-    public string? Cursor { get; private set; } = null;
+    public int CursorX { get; private set; } = 0;
+    public int CursorY { get; private set; } = 0;
 
     public string? PieceSelectedAt { get; private set; }
     public string? PieceReleasedAt { get; private set; }
+
+    public IChessPiece? SelectedPiece { get; private set; }
 
     private int _activeColor = 0;
     private int _playerColor;
@@ -50,6 +53,19 @@ public class Game : IChessGame
         NCurses.NoEcho();
         NCurses.Keypad(_win, true);
         NCurses.StartColor();
+        NCurses.NoDelay(_win, true);
+        NCurses.NoEcho();
+        NCurses.Keypad(_win, true);
+        NCurses.WindowRefresh(_win);
+        NCurses.StartColor();
+        NCurses.InitColor(2, 920, 900, 804);
+        NCurses.InitColor(3, 216, 160, 104);
+        NCurses.InitColor(4, 120, 113, 104);
+        NCurses.InitColor(5, 1000, 980, 260);
+        NCurses.InitPair(1, 0, 2); // white
+        NCurses.InitPair(2, 7, 3); // black
+        NCurses.InitPair(3, 7, 4); // edge
+        NCurses.InitPair(4, 7, 5); // edge
     }
 
 
@@ -83,37 +99,92 @@ public class Game : IChessGame
 
     }
 
-    public void SetCursor(string key)
+    public void SetCursor(System.ConsoleKey arrowKey)
     {
 
+        if (arrowKey == ConsoleKey.RightArrow)
+        {
+            CursorX += 1;
+            if (CursorX > 7)
+            {
+                CursorX = 0;
+            }
+        }
+        if (arrowKey == ConsoleKey.LeftArrow)
+        {
+            CursorX -= 1;
+            if (CursorX < 0)
+            {
+                CursorX = 7;
+            }
+        }
+        if (arrowKey == ConsoleKey.UpArrow)
+        {
+            CursorY += 1;
+            if (CursorY > 7)
+            {
+                CursorY = 0;
+            }
+        }
+        if (arrowKey == ConsoleKey.DownArrow)
+        {
+            CursorY -= 1;
+            if (CursorY < 0)
+            {
+                CursorY = 7;
+            }
+        }
+        return;
+    }
+
+    private string CursorToAddress()
+    {
+        var letter = "abcdefgh";
+        return $"{letter[CursorX]}{CursorY + 1}";
     }
 
 
     public void SelectPiece()
     {
-        // var letter = "abcdefgh";
-        // PieceSelectedAt = $"{letter[CursorX]}{CursorY + 1}";
+        var address = CursorToAddress();
+        var square = _board.GetSquareByAddress(address);
+        if (square.Piece?.Color != _activeColor)
+        {
+            throw new Exception("Piece not owned by active player");
+        }
+        PieceSelectedAt = CursorToAddress();
+        SelectedPiece = square.Piece;
     }
 
-    public void ReleasePiece()
+    public void ReturnPiece()
     {
-        //     var letter = "abcdefgh";
-        //     PieceReleasedAt = $"{letter[CursorX]}{CursorY + 1}";
+        SelectedPiece = null;
+        PieceSelectedAt = null;
+    }
 
-        //     // piece not moved
-        //     if (PieceReleasedAt != PieceSelectedAt)
-        //     {
-        //         MakeMove($"{PieceSelectedAt}-{PieceReleasedAt}");
-        //     }
-        //     PieceReleasedAt = null;
-        //     PieceSelectedAt = null;
+    public void MovePiece()
+    {
+        string? move = null;
+        PieceReleasedAt = CursorToAddress();
+        if (PieceReleasedAt != PieceSelectedAt)
+        {
+            move = $"{PieceSelectedAt}-{PieceReleasedAt}";
+        }
+        PieceReleasedAt = null;
+        PieceSelectedAt = null;
+        SelectedPiece = null;
+        // piece not moved
+        if (move is not null)
+        {
+            MakeMove(move);
+        }
     }
 
     public void UndoAction()
     {
         if (Actions.Count == 0)
         {
-            throw new Exception("no moves found");
+            throw new Exception("Cannot undo. No moves found..");
         }
         // revert last move
         var lastAction = Actions.Last();
@@ -158,8 +229,27 @@ public class Game : IChessGame
 
     public void PrintBoard(string? msg)
     {
+        NCurses.GetMaxYX(_win, out int screenHeight, out int screenWidth);
         NCurses.ClearWindow(_win);
-        _board.PrintBoard(_win, Cursor, msg);
+        if (screenHeight < _board.BoardHeight)
+        {
+            NCurses.MoveWindowAddString(_win, 1, 1, "not enough room to render. Terminal height is insufficient.\n Please redize terminal. Press any key to attempt a re-render.");
+        }
+        else if (screenHeight < _board.BoardHeight)
+        {
+            NCurses.MoveWindowAddString(_win, 1, 1, "not enough room to render. Terminal width is insufficient.\n Please redize terminal. Press any key to attempt a re-render.");
+        }
+        else
+        {
+            string? lastMove = null;
+            if (Actions.Count() > 0)
+            {
+                var action = Actions.Last();
+                var capture = action.Capture?.Piece.Type;
+                lastMove = $"{action.Move}{(capture is not null ? $"x{capture}" : null)}";
+            }
+            _board.PrintBoard(_win, _activeColor, CursorToAddress(), lastMove, msg, SelectedPiece);
+        }
         NCurses.Refresh();
     }
 
@@ -328,44 +418,67 @@ public class Game : IChessGame
     {
 
         IChessMove? parsed = null;
-
-        Capture? capture = null;
-        parsed = ParseMove(move);
-        var piece = parsed.From.Piece!;
         try
         {
-            _board.ValidateMove(parsed, _activeColor);
-            if (parsed.To.Piece is not null)
+            Capture? capture = null;
+            parsed = ParseMove(move);
+            var piece = parsed.From.Piece!;
+            try
             {
-                // capture at destination square
-                capture = new Capture(parsed.To.Piece, parsed.To.Address);
+                _board.ValidateMove(parsed, _activeColor);
+                if (parsed.To.Piece is not null)
+                {
+                    // capture at destination square
+                    capture = new Capture(parsed.To.Piece, parsed.To.Address);
 
+                }
             }
-        }
 
-        catch (CollisionError e)
+            catch (CollisionError e)
+            {
+                var blocker = e.Square.Piece!;
+                // en passant move.
+                if (e.Mover.Type == PieceType.P)
+                {
+                    // capture in passing
+                    capture = new Capture(blocker, e.Square.Address);
+                    e.Square.Update(null);
+                }
+                // castling
+                if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
+                {
+                    // ..
+                }
+                throw new Exception(e.Message);
+            }
+            _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
+            Actions.Add(new Action(piece, move, capture, null, false));
+
+            DetectCheck();
+
+            DetectPromotion(parsed);
+
+        }
+        catch (MovementError e)
         {
-            var blocker = e.Square.Piece!;
-            // en passant move.
-            if (e.Mover.Type == PieceType.P)
-            {
-                // capture in passing
-                capture = new Capture(blocker, e.Square.Address);
-                e.Square.Update(null);
-            }
-            // castling
-            if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
-            {
-                // ..
-            }
-            throw new Exception(e.Message);
+            throw new Exception($"move is invalid for piece of type {e.Type}. {e.Message}");
         }
-        _board.MakeMove(parsed.From, parsed.To, parsed.From.Piece!);
-        Actions.Add(new Action(piece, move, capture, null, false));
-
-        DetectCheck();
-
-        DetectPromotion(parsed);
+        catch (CheckError e)
+        {
+            throw new Exception($"{(e.Color == 0 ? "Kw" : "Kb")} checked by {e.Offender} at {e.Address} ");
+        }
+        catch (MoveParseError)
+        {
+            throw new Exception("invalid move format. Move must be formatted as <from>-<to>. Example: a2-a3");
+        }
+        catch (AddressParseError e)
+        {
+            throw new Exception($"invalid address '{e.Address}'");
+        }
+        catch (Exception e)
+        {
+            throw new Exception($"{e.Message}");
+        }
     }
 
     public void Quit()

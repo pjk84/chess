@@ -3,11 +3,14 @@ namespace Chess.Interfaces;
 
 public interface IChessGame
 {
-    public string? Cursor { get; }
+    public int CursorX { get; }
+    public int CursorY { get; }
 
     public string? PieceSelectedAt { get; }
 
     public string? PieceReleasedAt { get; }
+
+    public IChessPiece? SelectedPiece { get; }
 
     public bool IsPlaying { get; }
 
@@ -22,11 +25,13 @@ public interface IChessGame
 
     public string PrintTurns();
 
-    public void SetCursor();
+    public void SetCursor(System.ConsoleKey arrowKey);
 
     public void SelectPiece();
 
-    public void ReleasePiece();
+    public void MovePiece();
+
+    public void ReturnPiece();
 
     public void Castle(string address);
 

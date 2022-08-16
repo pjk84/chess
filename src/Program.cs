@@ -10,24 +10,10 @@ class Demo
         string? inp = null;
         string? msg = null;
         IChessGame game = new Game();
-        var window = NCurses.InitScreen();
-        NCurses.NoDelay(window, true);
-        NCurses.NoEcho();
-        NCurses.Keypad(window, true);
-        NCurses.WindowRefresh(window);
-        NCurses.StartColor();
-        NCurses.InitColor(2, 920, 900, 804);
-        NCurses.InitColor(3, 216, 160, 104);
-        NCurses.InitColor(4, 120, 113, 104);
-        NCurses.InitColor(5, 1000, 980, 260);
-        NCurses.InitPair(1, 0, 2); // white
-        NCurses.InitPair(2, 7, 3); // black
-        NCurses.InitPair(3, 7, 4); // edge
-        NCurses.InitPair(4, 7, 5); // edge
+
         void print(string? msg, string? instruction)
         {
             game.PrintBoard(msg);
-            Console.Write($"\n\n\n\n\r          {(instruction is not null ? instruction : "make a move")}: ");
 
         }
 
@@ -40,52 +26,53 @@ class Demo
         // Console.WriteLine("exit  --> quit game");
         // Console.WriteLine(game.PrintBoard());
         print(null, null);
+        System.ConsoleKey[] arrowKeys = { ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow };
         while (game.IsPlaying)
         {
-            var k = Console.ReadKey();
-            if (k.Key == ConsoleKey.RightArrow)
+            var e = Console.ReadKey();
+            if (arrowKeys.Contains(e.Key))
             {
-                game.CursorX += 1;
-                if (game.CursorX > 7)
-                {
-                    game.CursorX = 0;
-                }
+                game.SetCursor(e.Key);
             }
-            if (k.Key == ConsoleKey.LeftArrow)
+            if (e.Key == ConsoleKey.Spacebar)
             {
-                game.CursorX -= 1;
-                if (game.CursorX < 0)
+                try
                 {
-                    game.CursorX = 7;
-                }
-            }
 
-            if (k.Key == ConsoleKey.UpArrow)
-            {
-                game.CursorY += 1;
-                if (game.CursorY > 7)
+                    msg = null;
+                    if (game.PieceSelectedAt is not null)
+                    {
+                        game.MovePiece();
+                        game.SwitchTurns();
+                    }
+                    else
+                    {
+                        game.SelectPiece();
+                    }
+                }
+                catch (Exception err)
                 {
-                    game.CursorY = 0;
+                    msg = $"illegal move: {err.Message}";
                 }
             }
-            if (k.Key == ConsoleKey.DownArrow)
-            {
-                game.CursorY -= 1;
-                if (game.CursorY < 0)
-                {
-                    game.CursorY = 7;
-                }
-            }
-            if (k.Key == ConsoleKey.Spacebar)
+            if (e.Key == ConsoleKey.Escape)
             {
                 if (game.PieceSelectedAt is not null)
                 {
-                    game.ReleasePiece();
-                    game.SwitchTurns();
+                    game.ReturnPiece();
                 }
-                else
+
+            }
+            if (e.Key == ConsoleKey.Backspace)
+            {
+                try
                 {
-                    game.SelectPiece();
+
+                    game.UndoAction();
+                }
+                catch (Exception err)
+                {
+                    msg = err.Message;
                 }
             }
 
