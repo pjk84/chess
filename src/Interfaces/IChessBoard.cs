@@ -5,6 +5,7 @@ namespace Chess.Interfaces;
 
 public interface IChessboard
 {
+
     public Square[][] Squares { get; }
 
     public int BoardHeight { get; init; }
@@ -20,7 +21,7 @@ public interface IChessboard
 
     public IChessSquare GetSquareByAddress(string address);
 
-    public void PrintBoard(IntPtr window, int activeColor, string cursor, string? lastMove, string? msg, IChessPiece? selectedPiece);
+    public void PrintBoard(IntPtr window, int activeColor, string cursor, IChessPiece? selectedPiece, bool showOwnArmy = false);
     public (int color, Square square)? EvaluateCheck();
 
     public Square[] Slice(IChessMove move);

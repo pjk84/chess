@@ -31,15 +31,18 @@ class CheckError : Exception
     }
 }
 
-class MovementError : Exception
+class MoveError : Exception
 {
-    public PieceType Type { get; init; }
+    public PieceType? Type { get; init; }
 
-    public MovementError(PieceType type, string? message) : base(message)
+    public MoveError(PieceType? type, string? message) : base(message)
     {
         Type = type;
     }
 }
+
+class TargetError : Exception { }
+
 
 
 class AddressParseError : Exception

@@ -14,14 +14,16 @@ public interface IChessGame
 
     public bool IsPlaying { get; }
 
-    public string? Checked { get; }
     public Piece? Promotee { get; set; }
 
     public bool[] Castled { get; }
 
+    public bool ShowOwnArmy { get; set; }
+
     public List<Action> Actions { get; }
 
-    public void PrintBoard(string? msg);
+    public void PrintBoard();
+    public void PrintTextBox(string? msg);
 
     public string PrintTurns();
 
@@ -41,7 +43,7 @@ public interface IChessGame
 
     public void MakeMove(string move);
 
-    public void UndoAction();
+    public void UndoAction(bool switchTurns = true);
 
     public void Setup();
 

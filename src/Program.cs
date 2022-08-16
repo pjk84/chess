@@ -1,5 +1,4 @@
 ﻿using Chess.Models;
-using Mindmagma.Curses;
 
 using Chess.Interfaces;
 class Demo
@@ -11,10 +10,16 @@ class Demo
         string? msg = null;
         IChessGame game = new Game();
 
-        void print(string? msg, string? instruction)
+        void print(string? msg)
         {
-            game.PrintBoard(msg);
+            game.PrintBoard();
+            printText(msg);
 
+        }
+
+        void printText(string? msg)
+        {
+            game.PrintTextBox(msg);
         }
 
 
@@ -25,20 +30,50 @@ class Demo
         // Console.WriteLine("reset --> reset game");
         // Console.WriteLine("exit  --> quit game");
         // Console.WriteLine(game.PrintBoard());
-        print(null, null);
+
+        print(null);
+        Console.CancelKeyPress += (object? sender, ConsoleCancelEventArgs e) =>
+                                  {
+                                      if (e.SpecialKey == ConsoleSpecialKey.ControlC)
+                                      {
+                                          game.Quit();
+                                          return;
+                                      };
+                                  };
         System.ConsoleKey[] arrowKeys = { ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow };
         while (game.IsPlaying)
         {
+
             var e = Console.ReadKey();
+
             if (arrowKeys.Contains(e.Key))
             {
                 game.SetCursor(e.Key);
+            }
+            if (e.Key == ConsoleKey.Q)
+            {
+                printText("quit y/n? ");
+                var done = false;
+                while (!done)
+                {
+                    var k = Console.ReadKey();
+                    if (k.Key == ConsoleKey.Y)
+                    {
+                        game.Quit();
+                        return;
+                    }
+                    if (k.Key == ConsoleKey.N)
+                    {
+                        done = true;
+                        continue;
+                    }
+                }
+
             }
             if (e.Key == ConsoleKey.Spacebar)
             {
                 try
                 {
-
                     msg = null;
                     if (game.PieceSelectedAt is not null)
                     {
@@ -48,11 +83,15 @@ class Demo
                     else
                     {
                         game.SelectPiece();
+                        printText("Piece selected.\nPress space to release. \npress escape to cancel");
+                        continue;
                     }
                 }
+
                 catch (Exception err)
                 {
-                    msg = $"illegal move: {err.Message}";
+                    msg = err.Message;
+
                 }
             }
             if (e.Key == ConsoleKey.Escape)
@@ -60,21 +99,37 @@ class Demo
                 if (game.PieceSelectedAt is not null)
                 {
                     game.ReturnPiece();
+                    print("Move canceled.\npiece returned to original position");
+                    continue;
                 }
+            }
+            if (e.Key == ConsoleKey.Enter)
+            {
+                Console.WriteLine("asdas: ");
+                var done = false;
+                while (!done)
+                {
 
+                }
+            }
+            if (e.Key == ConsoleKey.Tab)
+            {
+                game.ShowOwnArmy = !game.ShowOwnArmy;
             }
             if (e.Key == ConsoleKey.Backspace)
             {
                 try
                 {
-
                     game.UndoAction();
+                    print($"move reverted\nfound {game.Actions.Count()} more move(s) to undo");
+                    continue;
                 }
                 catch (Exception err)
                 {
                     msg = err.Message;
                 }
             }
+
 
             //     msg = null;
             //     if (game.Promotee is not null)
@@ -277,7 +332,8 @@ class Demo
             //     {
             //         msg = $"{e.Message}";
             //     }
-            print(msg, null);
+            print(msg);
+            msg = null;
         }
 
     }

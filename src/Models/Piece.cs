@@ -92,7 +92,7 @@ public class Piece : IChessPiece
             case PieceType.R:
                 if (move.Type != MoveType.Straight)
                 {
-                    err = "diagonal move not allowed";
+                    err = "Only moves in the same rank or file allowed.";
                 }
                 break;
             case PieceType.B:
@@ -130,7 +130,7 @@ public class Piece : IChessPiece
         }
         if (err is not null)
         {
-            throw new MovementError(Type, err);
+            throw new MoveError(Type, err);
         }
     }
 

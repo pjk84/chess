@@ -9,7 +9,9 @@ namespace Chess.Models;
 public class Game : IChessGame
 {
     private IntPtr _win;
+    private IntPtr _textBox;
 
+    public bool ShowOwnArmy { get; set; }
     public int CursorX { get; private set; } = 0;
     public int CursorY { get; private set; } = 0;
 
@@ -25,7 +27,7 @@ public class Game : IChessGame
 
     private int _presentation = 1;
 
-    public string? Checked { get; private set; } = null;
+    private int? _isChecked = null;
 
     public bool[] Castled { get; } = { false, false };
 
@@ -48,16 +50,16 @@ public class Game : IChessGame
         _playerColor = 0;
         Actions = new List<Action> { };
         _activeColor = 0;
+
         _win = NCurses.InitScreen();
+        _textBox = NCurses.NewWindow(5, 56, 30, 1);
+        // NCurses.MoveWindow(_textBox, 5, 5);
+        NCurses.StartColor();
+        NCurses.CBreak();
         NCurses.NoDelay(_win, true);
         NCurses.NoEcho();
+        NCurses.SetCursor(0);
         NCurses.Keypad(_win, true);
-        NCurses.StartColor();
-        NCurses.NoDelay(_win, true);
-        NCurses.NoEcho();
-        NCurses.Keypad(_win, true);
-        NCurses.WindowRefresh(_win);
-        NCurses.StartColor();
         NCurses.InitColor(2, 920, 900, 804);
         NCurses.InitColor(3, 216, 160, 104);
         NCurses.InitColor(4, 120, 113, 104);
@@ -65,14 +67,16 @@ public class Game : IChessGame
         NCurses.InitPair(1, 0, 2); // white
         NCurses.InitPair(2, 7, 3); // black
         NCurses.InitPair(3, 7, 4); // edge
-        NCurses.InitPair(4, 7, 5); // edge
+        NCurses.InitPair(4, 0, 5); // selection
+        NCurses.InitPair(5, 4, 6); // own army
+
     }
 
 
     private Board NewBoard()
     {
         {
-            using (StreamReader r = new StreamReader("start.json"))
+            using (StreamReader r = new StreamReader("test.json"))
             {
                 return new Board(r.ReadToEnd());
             }
@@ -143,14 +147,17 @@ public class Game : IChessGame
         return $"{letter[CursorX]}{CursorY + 1}";
     }
 
-
     public void SelectPiece()
     {
         var address = CursorToAddress();
         var square = _board.GetSquareByAddress(address);
-        if (square.Piece?.Color != _activeColor)
+        if (square.Piece is null)
         {
-            throw new Exception("Piece not owned by active player");
+            throw new Exception("Square is empty");
+        }
+        if (square.Piece.Color != _activeColor)
+        {
+            throw new Exception($"Piece not owned by player {(_activeColor == 0 ? "white" : "black")}");
         }
         PieceSelectedAt = CursorToAddress();
         SelectedPiece = square.Piece;
@@ -166,10 +173,7 @@ public class Game : IChessGame
     {
         string? move = null;
         PieceReleasedAt = CursorToAddress();
-        if (PieceReleasedAt != PieceSelectedAt)
-        {
-            move = $"{PieceSelectedAt}-{PieceReleasedAt}";
-        }
+        move = $"{PieceSelectedAt}-{PieceReleasedAt}";
         PieceReleasedAt = null;
         PieceSelectedAt = null;
         SelectedPiece = null;
@@ -180,8 +184,9 @@ public class Game : IChessGame
         }
     }
 
-    public void UndoAction()
+    public void UndoAction(bool switchTurns = true)
     {
+
         if (Actions.Count == 0)
         {
             throw new Exception("Cannot undo. No moves found..");
@@ -208,7 +213,11 @@ public class Game : IChessGame
             square.Update(lastAction.Capture.Piece);
         }
         Actions.RemoveAt(Actions.Count() - 1);
-        SwitchTurns();
+        if (switchTurns)
+        {
+
+            SwitchTurns();
+        }
 
     }
 
@@ -227,30 +236,40 @@ public class Game : IChessGame
         return new Move(_board.GetSquareByAddress(addresses[0]), _board.GetSquareByAddress(addresses[1]));
     }
 
-    public void PrintBoard(string? msg)
+    public void PrintTextBox(string? msg)
     {
+        NCurses.ClearWindow(_textBox);
+        string? lastMove = null;
+        if (Actions.Count() > 0)
+        {
+            var action = Actions.Last();
+            var capture = action.Capture?.Piece.Type;
+            lastMove = $"{action.Piece.Type}-{action.Move}{(capture is not null ? $"x{capture}" : null)}";
+        }
+
+        if (_isChecked is not null)
+        {
+
+            NCurses.MoveWindowAddString(_textBox, 0, 0, $"K of player {(_isChecked == 0 ? "White" : "Black")} is threatened");
+        }
+        var txt = msg ?? $"{(_activeColor == 0 ? "White" : "Black")} is playing{(lastMove is not null ? $", last move was {lastMove}" : null)}";
+        NCurses.MoveWindowAddString(_textBox, 1, 0, txt);
+        NCurses.WindowRefresh(_textBox);
+
+    }
+    public void PrintBoard()
+    {
+
         NCurses.GetMaxYX(_win, out int screenHeight, out int screenWidth);
-        NCurses.ClearWindow(_win);
-        if (screenHeight < _board.BoardHeight)
+        // NCurses.ClearWindow(_win);
+        if (screenHeight < _board.BoardHeight || screenWidth < _board.boardWidth)
         {
-            NCurses.MoveWindowAddString(_win, 1, 1, "not enough room to render. Terminal height is insufficient.\n Please redize terminal. Press any key to attempt a re-render.");
+            NCurses.ResizeTerminal(_board.BoardHeight, _board.boardWidth);
         }
-        else if (screenHeight < _board.BoardHeight)
-        {
-            NCurses.MoveWindowAddString(_win, 1, 1, "not enough room to render. Terminal width is insufficient.\n Please redize terminal. Press any key to attempt a re-render.");
-        }
-        else
-        {
-            string? lastMove = null;
-            if (Actions.Count() > 0)
-            {
-                var action = Actions.Last();
-                var capture = action.Capture?.Piece.Type;
-                lastMove = $"{action.Move}{(capture is not null ? $"x{capture}" : null)}";
-            }
-            _board.PrintBoard(_win, _activeColor, CursorToAddress(), lastMove, msg, SelectedPiece);
-        }
-        NCurses.Refresh();
+
+        _board.PrintBoard(_win, _activeColor, CursorToAddress(), SelectedPiece, ShowOwnArmy);
+        // }
+        NCurses.WindowRefresh(_win);
     }
 
     public string PrintTurns()
@@ -346,7 +365,7 @@ public class Game : IChessGame
                 {
                     foreach (var i in Enumerable.Range(0, step))
                     {
-                        RevertCastling();
+                        UndoAction(false);
                     }
                     throw new Exception($"Castling under check not allowed. K checked by {check.Value.square.Piece!.Type} at {check.Value.square.Address} ");
                 }
@@ -370,6 +389,7 @@ public class Game : IChessGame
         var check = _board.EvaluateCheck();
         if (!check.HasValue)
         {
+            _isChecked = null;
             // neither side is checked. No need to take the analysis any further.
             return;
         }
@@ -384,6 +404,15 @@ public class Game : IChessGame
             SwitchTurns();
             throw new CheckError(color, offender.Address, offender.Piece!.Type);
         }
+        else
+        {
+            _isChecked = 1 - _activeColor;
+        }
+    }
+
+    public void DetectCheckMate()
+    {
+
     }
 
     public void DetectPromotion(IChessMove move)
@@ -422,6 +451,8 @@ public class Game : IChessGame
         {
             Capture? capture = null;
             parsed = ParseMove(move);
+
+
             var piece = parsed.From.Piece!;
             try
             {
@@ -431,6 +462,15 @@ public class Game : IChessGame
                     // capture at destination square
                     capture = new Capture(parsed.To.Piece, parsed.To.Address);
 
+                }
+            }
+            catch (TargetError)
+            {
+                if (parsed.From.Piece?.Type == PieceType.R && parsed.To.Piece?.Type == PieceType.K)
+                {
+                    // castle
+                    Castle(parsed.From.Address);
+                    return;
                 }
             }
 
@@ -459,13 +499,14 @@ public class Game : IChessGame
             DetectPromotion(parsed);
 
         }
-        catch (MovementError e)
+        catch (MoveError e)
         {
-            throw new Exception($"move is invalid for piece of type {e.Type}. {e.Message}");
+            throw new Exception($"illegal move. {(e.Type is not null ? $"Move is invalid for piece of type {e.Type}." : null)}\n{e.Message}");
         }
         catch (CheckError e)
         {
-            throw new Exception($"{(e.Color == 0 ? "Kw" : "Kb")} checked by {e.Offender} at {e.Address} ");
+            DetectCheckMate();
+            throw new Exception($"illegal move.\n{(e.Color == 0 ? "wK" : "bK")} checked by {e.Offender} at {e.Address} ");
         }
         catch (MoveParseError)
         {
@@ -483,7 +524,7 @@ public class Game : IChessGame
 
     public void Quit()
     {
-        IsPlaying = false;
+        NCurses.EndWin();
     }
 }
 

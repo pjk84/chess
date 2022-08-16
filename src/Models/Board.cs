@@ -9,8 +9,7 @@ public class Board : IChessboard
 {
 
     private string _letters = "abcdefgh";
-    private int _offsetX = 10;
-    private int _offsetY = 2;
+
     private int _squareSize = 6;
     private int _edgeWidth = 4;
 
@@ -41,8 +40,8 @@ public class Board : IChessboard
         };
 
         Squares = Deserialize(squares);
-        BoardHeight = _offsetY + ((_squareSize / 2) * 8) + _edgeWidth + _bottomMargin;
-        boardWidth = _offsetX + (_squareSize * 8) + _edgeWidth * 2;
+        BoardHeight = ((_squareSize / 2) * 8) + _edgeWidth + _bottomMargin;
+        boardWidth = (_squareSize * 8) + _edgeWidth * 2;
     }
 
 
@@ -84,9 +83,8 @@ public class Board : IChessboard
         return Squares[rank - 1][file];
     }
 
-    public void PrintBoard(IntPtr window, int activeColor, string cursor, string? lastMove, string? msg, IChessPiece? selectedPiece)
+    public void PrintBoard(IntPtr window, int activeColor, string cursor, IChessPiece? selectedPiece, bool showOwnArmy = false)
     {
-
 
         int boardWidth = _squareSize * 8 + (_edgeWidth * 2);
         var boardHeight = ((_squareSize * 8) / 2) + _edgeWidth;
@@ -98,7 +96,7 @@ public class Board : IChessboard
 
         // left corner chunk
         var boarderFiles = boarderChunkHorizontal;
-        var boarderHClear = string.Concat(Enumerable.Repeat(" ", boardWidth));
+        var boarderHClear = string.Concat(Enumerable.Repeat(" ", boardWidth - 3));
         string boarderV = string.Concat(Enumerable.Repeat(" ", _edgeWidth));
         foreach (var rank in Squares.Reverse())
         {
@@ -106,20 +104,21 @@ public class Board : IChessboard
             if (i == 0)
             {
                 NCurses.AttributeOn(NCurses.ColorPair(3));
-                NCurses.MoveWindowAddString(window, 1 + _offsetY, 0 + _offsetX, boarderHClear);
+                NCurses.MoveWindowAddString(window, 1, 0, $"{boarderHClear}{(activeColor == 1 ? "<< " : "   ")}");
             }
             if (i == 7)
             {
 
                 NCurses.AttributeOn(NCurses.ColorPair(3));
-                NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2) + _offsetY, 0 + _offsetX, boarderHClear);
+                NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2), 0, $"{boarderHClear}{(activeColor == 0 ? "<< " : "   ")}");
             }
 
             var file = 0;
             foreach (var square in rank)
             {
-                var activeSquare = square.Address == cursor;
-                var squareColor = activeSquare ? 4 : square.Color + 1;
+                var focused = square.Address == cursor;
+                var squareColor = focused ? 4 : square.Color + 1;
+
                 if (i == 0)
                 {
                     boarderFiles += $"  {_letters[file]}   ";
@@ -128,7 +127,7 @@ public class Board : IChessboard
                         // add right corner chunk to finish the row
                         boarderFiles += boarderChunkHorizontal;
                         NCurses.AttributeOn(NCurses.ColorPair(3));
-                        NCurses.MoveWindowAddString(window, 0 + _offsetY, 0 + _offsetX, boarderFiles);
+                        NCurses.MoveWindowAddString(window, 0, 0, boarderFiles);
                     }
                 }
                 if (i == 7)
@@ -136,18 +135,22 @@ public class Board : IChessboard
                     if (file == 7)
                     {
                         NCurses.AttributeOn(NCurses.ColorPair(3));
-                        NCurses.MoveWindowAddString(window, (boardHeight + 1 - _edgeWidth / 2) + _offsetY, 0 + _offsetX, boarderFiles);
+                        NCurses.MoveWindowAddString(window, (boardHeight + 1 - _edgeWidth / 2), 0, boarderFiles);
                     }
                 }
-                var boarderNumeralOffsetY = (i * _squareSize / 2 + (_edgeWidth / 2 + 1)) + _offsetY;
-                var SquareOffsetX = file * _squareSize + _edgeWidth + _offsetX;
-                var RightBoarderOffsetX = (8 * _squareSize) + _offsetX + _edgeWidth;
-                var piece = activeSquare ? selectedPiece ?? square.Piece : square.Piece;
+                var boarderNumeralOffsetY = (i * _squareSize / 2 + (_edgeWidth / 2 + 1));
+                var SquareOffsetX = file * _squareSize + _edgeWidth;
+                var RightBoarderOffsetX = (8 * _squareSize) + _edgeWidth;
+                var piece = focused ? selectedPiece ?? square.Piece : square.Piece;
                 var pieceNotation = "  ";
                 if (piece is not null)
                 {
+                    if (showOwnArmy && piece.Color == activeColor && !focused)
+                    {
+                        squareColor = 5;
+                    }
                     pieceNotation = $"{(piece.Color == 0 ? "w" : "b")}{piece.Type}";
-                    if (!activeSquare && piece.Id == selectedPiece?.Id)
+                    if (!focused && piece.Id == selectedPiece?.Id)
                     {
                         pieceNotation = "  ";
                     }
@@ -162,11 +165,11 @@ public class Board : IChessboard
                         NCurses.AttributeOn(NCurses.ColorPair(3));
                         if (h == 2)
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, _offsetX, $" {8 - i}  ");
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, 0, $" {8 - i}  ");
                         }
                         else
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), _offsetX, boarderV);
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), 0, boarderV);
                         }
                     }
 
@@ -183,15 +186,17 @@ public class Board : IChessboard
                             NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), RightBoarderOffsetX, boarderV);
 
                         }
+
                     }
                     NCurses.AttributeOn(NCurses.ColorPair(squareColor));
+
                     if (h == 2)
                     {
                         NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, SquareOffsetX, $"  {pieceNotation}  ");
                     }
                     else
                     {
-                        NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1) + _offsetY, SquareOffsetX, emptySquareH);
+                        NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1), SquareOffsetX, emptySquareH);
                     }
                 }
 
@@ -199,15 +204,14 @@ public class Board : IChessboard
             }
 
 
+
+
             i++;
         }
         NCurses.AttributeOff(NCurses.ColorPair(1));
         NCurses.AttributeOff(NCurses.ColorPair(2));
-        if (msg is not null)
-        {
-            NCurses.MoveWindowAddString(window, BoardHeight - 2, _offsetX, msg);
-        }
-        NCurses.MoveWindowAddString(window, BoardHeight - 1, _offsetX, $"{(activeColor == 0 ? "White" : "Black")} is playing{(lastMove is not null ? $", last move was {lastMove}" : null)}");
+
+
     }
 
     private void MoveIsWithinBounds(IChessSquare target)
@@ -276,6 +280,10 @@ public class Board : IChessboard
     public void ValidateMove(IChessMove move, int activeColor)
     {
 
+        if (move.From.Address == move.To.Address)
+        {
+            throw new MoveError(null, "start and destination may not be the same square");
+        }
         if (move.From.Piece is null)
         {
             throw new Exception($"square is empty");
@@ -283,12 +291,13 @@ public class Board : IChessboard
 
         if (move.From.Piece.Color != activeColor)
         {
-            throw new Exception($"{move.From.Piece.Type} at {move.From.Address} is not owned by player {(activeColor == 0 ? "white" : "black")}");
+            throw new MoveError(null, $"{move.From.Piece.Type} at {move.From.Address} is not owned by player {(activeColor == 0 ? "white" : "black")}");
         }
 
         if (move.To.Piece?.Color == activeColor)
         {
-            throw new Exception("own piece found at target square");
+
+            throw new TargetError();
         }
 
         //bounds
@@ -385,7 +394,6 @@ public class Board : IChessboard
         to.Update(piece);
 
         from.Update(null);
-
 
         if (piece.Type == PieceType.K)
         {
