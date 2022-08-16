@@ -2,9 +2,13 @@
 command line chess in c#
 
 controls:
+<br />
 arrow keys -> select square
+<br />
 spacebar -> select/move piece
+<br />
 escape (when piece is selected) ->  return selected piece
+<br />
 escape (no selection) ->  show options menu (e.g. save/load game)
 
 
