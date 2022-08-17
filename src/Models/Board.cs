@@ -19,7 +19,9 @@ public class Board : IChessboard
     public int boardWidth { get; init; }
 
     public Square[][] Squares { get; private set; }
-    public King[] Kings { get; private set; } = { new King(0, false, "e1"), new King(1, false, "e8") };
+    public IKing[] Kings { get; private set; } = { new King(0, "e1"), new King(1, "e8") };
+
+    public ICheck? Check { get; private set; } = null;
     private Dictionary<string, string> Pieces;
     public Board(string squares)
     {
@@ -233,12 +235,13 @@ public class Board : IChessboard
 
     // if either side is checked, returns a tuple with that sides' color 
     // and the offending square.
-    public (int color, Square square)? EvaluateCheck()
+    public ICheck? FindCheck()
     {
 
         int n = 0;
         foreach (var i in Enumerable.Range(0, 2))
         {
+            var king = Kings[i];
             var kingsSquare = GetSquareByAddress(Kings[i].Address);
             var _i = i == 0 ? 1 : 0;
             var squares = getSquaresByArmy(_i);
@@ -247,19 +250,24 @@ public class Board : IChessboard
                 try
                 {
                     ValidateMove(new Move(square, kingsSquare), _i);
-                    return new(n, square);
+                    var check = new Check(square, king);
+                    Check = check;
+                    return check;
                 }
                 catch (Exception)
                 {
                     // Console.WriteLine($"{square.Piece?.Type} at {square.Address}: {e.Message}");
                 }
             }
+
             n++;
         }
+        // kings not threatened
+        Check = null;
         return null;
     }
 
-    private Square[] getSquaresByArmy(int color)
+    public Square[] getSquaresByArmy(int color)
     {
         List<Square> squares = new List<Square>();
         foreach (var rank in Squares)
@@ -335,7 +343,8 @@ public class Board : IChessboard
         }
     }
 
-    // return single array of squares by move direction
+    // return single array of squares between from and to by move direction
+    //
     public Square[] Slice(IChessMove move)
     {
         var slice = Enumerable.Empty<Square>();
@@ -353,13 +362,14 @@ public class Board : IChessboard
 
                     var s = Squares[i][k];
 
-                    // eliminate source and destination and squares that are not on the diagonal
                     if (s.Address == move.From.Address || s.Address == move.To.Address)
                     {
+                        // eliminate source and destination and squares that are not on the diagonal
                         continue;
                     }
                     if (Math.Abs(s.Rank - move.From.Rank) != Math.Abs(s.File - move.From.File))
                     {
+                        // eliminate not diagonal
                         continue;
                     }
                     slice = slice.Append(s);
@@ -405,3 +415,15 @@ public class Board : IChessboard
 }
 
 
+
+public class Check : ICheck
+{
+    public IChessSquare Threat { get; init; }
+    public IKing King { get; init; }
+
+    public Check(IChessSquare threat, IKing king)
+    {
+        King = king;
+        Threat = threat;
+    }
+}

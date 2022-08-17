@@ -137,17 +137,15 @@ public class Piece : IChessPiece
 }
 
 
-public record King
+public record King : IKing
 {
     public int Color { get; init; }
 
     public string Address { get; set; }
 
-    public bool Checked { get; set; }
-    public King(int color, bool isChecked, string address)
+    public King(int color, string address)
     {
         Color = color;
-        Checked = isChecked;
         Address = address;
     }
 }

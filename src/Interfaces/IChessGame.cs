@@ -14,6 +14,7 @@ public interface IChessGame
 
     public bool IsPlaying { get; }
 
+
     public Piece? Promotee { get; set; }
 
     public bool[] Castled { get; }
@@ -33,6 +34,7 @@ public interface IChessGame
 
     public void MovePiece();
 
+    public void ToggleAi();
     public void ReturnPiece();
 
     public void Castle(string address);
@@ -42,6 +44,7 @@ public interface IChessGame
     public void LoadGame(string fileName);
 
     public void MakeMove(string move);
+    public void AiMove();
 
     public void UndoAction(bool switchTurns = true);
 

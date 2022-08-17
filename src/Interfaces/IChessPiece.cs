@@ -15,6 +15,14 @@ public interface IChessPiece
 
 }
 
+public interface IKing
+{
+    public int Color { get; init; }
+
+    public string Address { get; set; }
+
+}
+
 
 public enum PieceType
 {

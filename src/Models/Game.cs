@@ -1,6 +1,7 @@
 
 using Chess.Interfaces;
 using Mindmagma.Curses;
+using System.Linq;
 using System.Text.Json;
 
 namespace Chess.Models;
@@ -23,11 +24,10 @@ public class Game : IChessGame
     private int _activeColor = 0;
     private int _playerColor;
 
-    private bool _withAi = false;
+    public bool _withAi = false;
 
     private int _presentation = 1;
 
-    private int? _isChecked = null;
 
     public bool[] Castled { get; } = { false, false };
 
@@ -76,7 +76,7 @@ public class Game : IChessGame
     private Board NewBoard()
     {
         {
-            using (StreamReader r = new StreamReader("test.json"))
+            using (StreamReader r = new StreamReader("start.json"))
             {
                 return new Board(r.ReadToEnd());
             }
@@ -246,11 +246,9 @@ public class Game : IChessGame
             var capture = action.Capture?.Piece.Type;
             lastMove = $"{action.Piece.Type}-{action.Move}{(capture is not null ? $"x{capture}" : null)}";
         }
-
-        if (_isChecked is not null)
+        if (_board.Check is not null)
         {
-
-            NCurses.MoveWindowAddString(_textBox, 0, 0, $"K of player {(_isChecked == 0 ? "White" : "Black")} is threatened");
+            NCurses.MoveWindowAddString(_textBox, 0, 0, $"K of player {(_board.Check.King.Color == 0 ? "White" : "Black")} is threatened");
         }
         var txt = msg ?? $"{(_activeColor == 0 ? "White" : "Black")} is playing{(lastMove is not null ? $", last move was {lastMove}" : null)}";
         NCurses.MoveWindowAddString(_textBox, 1, 0, txt);
@@ -284,6 +282,12 @@ public class Game : IChessGame
         return s;
     }
 
+    public void ToggleAi()
+    {
+        _withAi = !_withAi;
+        PrintTextBox($"AI {(_withAi ? "on" : "off")}");
+    }
+
     public void SwitchTurns()
     {
         _activeColor = 1 - _activeColor;
@@ -293,8 +297,41 @@ public class Game : IChessGame
         }
     }
 
-    public void MakeMoveAi()
+    public void AiMove()
     {
+        var aiColor = 1 - _playerColor;
+        // resolve check if checked
+        if (_board.Check is not null && _board.Check.King.Color == aiColor)
+        {
+            //get all squares between the threat and the king
+            var slice = _board.Slice(new Move(_board.Check.Threat, _board.GetSquareByAddress(_board.Check.King.Address)));
+
+
+            var army = _board.getSquaresByArmy(aiColor);
+            List<IChessMove> options = new List<IChessMove> { };
+            foreach (var square in slice)
+            {
+                foreach (var position in army)
+                {
+                    try
+                    {
+                        var move = new Move(position, square);
+                        _board.ValidateMove(move, aiColor);
+                        options.Add(move);
+                    }
+                    catch
+                    {
+                        // move not possible
+                    }
+                }
+            }
+            if (options.Count() != 0)
+            {
+                var m = options[0];
+                _board.MakeMove(m.From, m.To, m.From.Piece!);
+            }
+        }
+        DetectCheck();
         // computer move
 
     }
@@ -358,16 +395,16 @@ public class Game : IChessGame
             newAddress = $"{from.Address}-{to.Address}";
             _board.MakeMove(from, to, king);
             Actions.Add(new Action(king, $"{from.Address}-{to.Address}", null, null, true));
-            var check = _board.EvaluateCheck();
-            if (check.HasValue)
+            var check = _board.FindCheck();
+            if (check is not null)
             {
-                if (check.Value.color == _activeColor)
+                if (check.King.Color == _activeColor)
                 {
                     foreach (var i in Enumerable.Range(0, step))
                     {
                         UndoAction(false);
                     }
-                    throw new Exception($"Castling under check not allowed. K checked by {check.Value.square.Piece!.Type} at {check.Value.square.Address} ");
+                    throw new Exception($"Castling under check not allowed. K checked by {check.Threat.Piece!.Type} at {check.Threat.Address} ");
                 }
                 _board.Kings[_activeColor].Address = to.Address;
             }
@@ -386,28 +423,20 @@ public class Game : IChessGame
     // if active side king is checked the move is reverted.
     public void DetectCheck()
     {
-        var check = _board.EvaluateCheck();
-        if (!check.HasValue)
+        var check = _board.FindCheck();
+        if (check is null)
         {
-            _isChecked = null;
             // neither side is checked. No need to take the analysis any further.
             return;
         }
-        // the square the has the piece that exerts the check
-        var offender = check.Value.square;
 
         // the side that is checked
-        var color = check.Value.color;
-        if (color == _activeColor)
+        if (check.King.Color == _activeColor)
         {
-            UndoAction();
-            SwitchTurns();
-            throw new CheckError(color, offender.Address, offender.Piece!.Type);
+            UndoAction(false);
+            throw new CheckError(check);
         }
-        else
-        {
-            _isChecked = 1 - _activeColor;
-        }
+
     }
 
     public void DetectCheckMate()
@@ -498,6 +527,12 @@ public class Game : IChessGame
 
             DetectPromotion(parsed);
 
+            if (_withAi)
+            {
+                AiMove();
+                SwitchTurns();
+            }
+
         }
         catch (MoveError e)
         {
@@ -506,7 +541,7 @@ public class Game : IChessGame
         catch (CheckError e)
         {
             DetectCheckMate();
-            throw new Exception($"illegal move.\n{(e.Color == 0 ? "wK" : "bK")} checked by {e.Offender} at {e.Address} ");
+            throw new Exception($"illegal move.\n{(e.Check.King.Color == 0 ? "wK" : "bK")} checked by {e.Check.Threat.Piece!.Type} at {e.Check.Threat.Address} ");
         }
         catch (MoveParseError)
         {

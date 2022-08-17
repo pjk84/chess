@@ -43,7 +43,6 @@ class Demo
         System.ConsoleKey[] arrowKeys = { ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow };
         while (game.IsPlaying)
         {
-
             var e = Console.ReadKey();
 
             if (arrowKeys.Contains(e.Key))
@@ -111,6 +110,11 @@ class Demo
                 {
 
                 }
+            }
+            if (e.Key == ConsoleKey.A)
+            {
+                game.ToggleAi();
+                continue;
             }
             if (e.Key == ConsoleKey.Tab)
             {
