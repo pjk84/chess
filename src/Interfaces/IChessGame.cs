@@ -6,11 +6,15 @@ public interface IChessGame
     public int CursorX { get; }
     public int CursorY { get; }
 
+    public int? CheckMate { get; }
+
     public string? PieceSelectedAt { get; }
 
     public string? PieceReleasedAt { get; }
 
     public IChessPiece? SelectedPiece { get; }
+
+    public bool WithAi { get; }
 
     public bool IsPlaying { get; }
 
@@ -64,4 +68,12 @@ public interface ISaveGame
 
     public Color ActiveColor { get; init; }
 
+}
+
+
+
+public interface IThreat
+{
+    public IChessSquare From { get; init; }
+    public IKing King { get; init; }
 }

@@ -18,10 +18,11 @@ public class Board : IChessboard
     public int BoardHeight { get; init; }
     public int boardWidth { get; init; }
 
+
+
     public Square[][] Squares { get; private set; }
     public IKing[] Kings { get; private set; } = { new King(0, "e1"), new King(1, "e8") };
 
-    public ICheck? Check { get; private set; } = null;
     private Dictionary<string, string> Pieces;
     public Board(string squares)
     {
@@ -233,39 +234,6 @@ public class Board : IChessboard
         }
     }
 
-    // if either side is checked, returns a tuple with that sides' color 
-    // and the offending square.
-    public ICheck? FindCheck()
-    {
-
-        int n = 0;
-        foreach (var i in Enumerable.Range(0, 2))
-        {
-            var king = Kings[i];
-            var kingsSquare = GetSquareByAddress(Kings[i].Address);
-            var _i = i == 0 ? 1 : 0;
-            var squares = getSquaresByArmy(_i);
-            foreach (var square in squares)
-            {
-                try
-                {
-                    ValidateMove(new Move(square, kingsSquare), _i);
-                    var check = new Check(square, king);
-                    Check = check;
-                    return check;
-                }
-                catch (Exception)
-                {
-                    // Console.WriteLine($"{square.Piece?.Type} at {square.Address}: {e.Message}");
-                }
-            }
-
-            n++;
-        }
-        // kings not threatened
-        Check = null;
-        return null;
-    }
 
     public Square[] getSquaresByArmy(int color)
     {
@@ -281,6 +249,20 @@ public class Board : IChessboard
             }
         }
         return squares.ToArray();
+    }
+
+    public List<IGrouping<int?, Square>> groupSquares()
+    {
+        List<Square> squares = new List<Square>();
+        foreach (var rank in Squares)
+        {
+            foreach (var square in rank)
+            {
+
+                squares.Add(square);
+            }
+        }
+        return squares.GroupBy(s => s.Piece?.Color).ToList();
     }
 
     // checks move against game rules at the board and piece level.
@@ -302,6 +284,9 @@ public class Board : IChessboard
             throw new MoveError(null, $"{move.From.Piece.Type} at {move.From.Address} is not owned by player {(activeColor == 0 ? "white" : "black")}");
         }
 
+        move.From.Piece.ValidateMove(move, move.To.Piece);
+
+
         if (move.To.Piece?.Color == activeColor)
         {
 
@@ -311,7 +296,6 @@ public class Board : IChessboard
         //bounds
         MoveIsWithinBounds(move.To);
 
-        move.From.Piece.ValidateMove(move, move.To.Piece);
 
         CheckCollision(move);
 
@@ -321,6 +305,7 @@ public class Board : IChessboard
 
     private void CheckCollision(IChessMove move)
     {
+
         if (move.Type == MoveType.Wild)
         {
             // no collision 
@@ -345,9 +330,10 @@ public class Board : IChessboard
 
     // return single array of squares between from and to by move direction
     //
-    public Square[] Slice(IChessMove move)
+    public List<IChessSquare> Slice(IChessMove move)
     {
-        var slice = Enumerable.Empty<Square>();
+
+        List<IChessSquare> slice = new List<IChessSquare>() { };
         int[] range = { };
         if (move.Type == MoveType.Diagonal)
         {
@@ -372,17 +358,19 @@ public class Board : IChessboard
                         // eliminate not diagonal
                         continue;
                     }
-                    slice = slice.Append(s);
+                    slice.Add(s);
 
                 }
             }
-            return slice.ToArray();
+            return slice;
         }
         if (move.From.File != move.To.File)
         {
             // horizontal move. no transposition needed
             range = new[] { move.From.File, move.To.File };
-            slice = Squares[move.From.Rank];
+            var rank = (IChessSquare[])Squares[move.From.Rank];
+            slice = rank.ToList();
+
         }
         else
         {
@@ -391,39 +379,28 @@ public class Board : IChessboard
             foreach (var i in Enumerable.Range(0, 8))
             {
                 var s = Squares[i][move.From.File];
-                slice = slice.Append(s);
+                slice.Add(s);
             }
         }
-        return slice.Take((range.Min() + 1)..range.Max()).ToArray();
+
+        return slice.Take((range.Min() + 1)..range.Max()).ToList();
     }
 
 
 
-    public void MakeMove(IChessSquare from, IChessSquare to, Piece piece)
+    public void MakeMove(IChessMove move)
     {
-        to.Update(piece);
+        var piece = move.From.Piece!;
+        move.To.Update(piece);
 
-        from.Update(null);
+        move.From.Update(null);
 
         if (piece.Type == PieceType.K)
         {
             var king = Kings.First(k => k.Color == piece.Color);
-            king.Address = to.Address;
+            king.Address = move.To.Address;
         }
 
     }
 }
 
-
-
-public class Check : ICheck
-{
-    public IChessSquare Threat { get; init; }
-    public IKing King { get; init; }
-
-    public Check(IChessSquare threat, IKing king)
-    {
-        King = king;
-        Threat = threat;
-    }
-}

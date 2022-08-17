@@ -43,6 +43,12 @@ class Demo
         System.ConsoleKey[] arrowKeys = { ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow };
         while (game.IsPlaying)
         {
+            if (game.WithAi)
+            {
+                game.AiMove();
+                print(null);
+            }
+
             var e = Console.ReadKey();
 
             if (arrowKeys.Contains(e.Key))
@@ -77,7 +83,6 @@ class Demo
                     if (game.PieceSelectedAt is not null)
                     {
                         game.MovePiece();
-                        game.SwitchTurns();
                     }
                     else
                     {
@@ -86,11 +91,9 @@ class Demo
                         continue;
                     }
                 }
-
                 catch (Exception err)
                 {
                     msg = err.Message;
-
                 }
             }
             if (e.Key == ConsoleKey.Escape)

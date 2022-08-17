@@ -19,10 +19,10 @@ class MoveParseError : Exception { }
 
 class CheckError : Exception
 {
-    public ICheck Check { get; init; }
-    public CheckError(ICheck check)
+    public IThreat Threat { get; init; }
+    public CheckError(IThreat threat)
     {
-        Check = check;
+        Threat = threat;
 
     }
 }
