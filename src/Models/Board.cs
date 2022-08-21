@@ -13,12 +13,9 @@ public class Board : IChessboard
     private int _squareSize = 6;
     private int _edgeWidth = 4;
 
-    private int _bottomMargin = 4;
-
+    private int _offsetY = 1;
     public int BoardHeight { get; init; }
     public int boardWidth { get; init; }
-
-
 
     public Square[][] Squares { get; private set; }
     public IKing[] Kings { get; private set; } = { new King(0, "e1"), new King(1, "e8") };
@@ -43,7 +40,7 @@ public class Board : IChessboard
         };
 
         Squares = Deserialize(squares);
-        BoardHeight = ((_squareSize / 2) * 8) + _edgeWidth + _bottomMargin;
+        BoardHeight = ((_squareSize / 2) * 8) + _edgeWidth;
         boardWidth = (_squareSize * 8) + _edgeWidth * 2;
     }
 
@@ -107,13 +104,13 @@ public class Board : IChessboard
             if (i == 0)
             {
                 NCurses.AttributeOn(NCurses.ColorPair(3));
-                NCurses.MoveWindowAddString(window, 1, 0, $"{boarderHClear}{(activeColor == 1 ? "<< " : "   ")}");
+                NCurses.MoveWindowAddString(window, 1 + _offsetY, 0, $"{boarderHClear}{(activeColor == 1 ? "<< " : "   ")}");
             }
             if (i == 7)
             {
-
+                NCurses.TouchWindow(window);
                 NCurses.AttributeOn(NCurses.ColorPair(3));
-                NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2), 0, $"{boarderHClear}{(activeColor == 0 ? "<< " : "   ")}");
+                NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2) + _offsetY, 0, $"{boarderHClear}{(activeColor == 0 ? "<< " : "   ")}");
             }
 
             var file = 0;
@@ -130,7 +127,7 @@ public class Board : IChessboard
                         // add right corner chunk to finish the row
                         boarderFiles += boarderChunkHorizontal;
                         NCurses.AttributeOn(NCurses.ColorPair(3));
-                        NCurses.MoveWindowAddString(window, 0, 0, boarderFiles);
+                        NCurses.MoveWindowAddString(window, 0 + _offsetY, 0, boarderFiles);
                     }
                 }
                 if (i == 7)
@@ -138,7 +135,7 @@ public class Board : IChessboard
                     if (file == 7)
                     {
                         NCurses.AttributeOn(NCurses.ColorPair(3));
-                        NCurses.MoveWindowAddString(window, (boardHeight + 1 - _edgeWidth / 2), 0, boarderFiles);
+                        NCurses.MoveWindowAddString(window, (boardHeight - _edgeWidth / 2) + 1 + _offsetY, 0, boarderFiles);
                     }
                 }
                 var boarderNumeralOffsetY = (i * _squareSize / 2 + (_edgeWidth / 2 + 1));
@@ -152,7 +149,7 @@ public class Board : IChessboard
                     {
                         squareColor = 5;
                     }
-                    pieceNotation = $"{(piece.Color == 0 ? "w" : "b")}{piece.Type}";
+                    pieceNotation = $"{(piece.Color == 0 ? "_" : " ")}{piece.Type}";
                     if (!focused && piece.Id == selectedPiece?.Id)
                     {
                         pieceNotation = "  ";
@@ -168,11 +165,11 @@ public class Board : IChessboard
                         NCurses.AttributeOn(NCurses.ColorPair(3));
                         if (h == 2)
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, 0, $" {8 - i}  ");
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY + _offsetY, 0, $" {8 - i}  ");
                         }
                         else
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), 0, boarderV);
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h) + _offsetY, 0, boarderV);
                         }
                     }
 
@@ -182,11 +179,11 @@ public class Board : IChessboard
                         NCurses.AttributeOn(NCurses.ColorPair(3));
                         if (h == 2)
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, RightBoarderOffsetX, $"  {8 - i} ");
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY + _offsetY, RightBoarderOffsetX, $"  {8 - i} ");
                         }
                         else
                         {
-                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h), RightBoarderOffsetX, boarderV);
+                            NCurses.MoveWindowAddString(window, boarderNumeralOffsetY - (2 - h) + _offsetY, RightBoarderOffsetX, boarderV);
 
                         }
 
@@ -195,11 +192,11 @@ public class Board : IChessboard
 
                     if (h == 2)
                     {
-                        NCurses.MoveWindowAddString(window, boarderNumeralOffsetY, SquareOffsetX, $"  {pieceNotation}  ");
+                        NCurses.MoveWindowAddString(window, boarderNumeralOffsetY + _offsetY, SquareOffsetX, $"  {pieceNotation}  ");
                     }
                     else
                     {
-                        NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1), SquareOffsetX, emptySquareH);
+                        NCurses.MoveWindowAddString(window, (i * _squareSize / 2 + h + 1) + _offsetY, SquareOffsetX, emptySquareH);
                     }
                 }
 
@@ -235,7 +232,7 @@ public class Board : IChessboard
     }
 
 
-    public Square[] getSquaresByArmy(int color)
+    public Square[] GetSquaresByArmy(int color)
     {
         List<Square> squares = new List<Square>();
         foreach (var rank in Squares)
@@ -251,7 +248,7 @@ public class Board : IChessboard
         return squares.ToArray();
     }
 
-    public List<IGrouping<int?, Square>> groupSquares()
+    public List<IGrouping<int?, Square>> GroupSquares()
     {
         List<Square> squares = new List<Square>();
         foreach (var rank in Squares)
@@ -265,9 +262,49 @@ public class Board : IChessboard
         return squares.GroupBy(s => s.Piece?.Color).ToList();
     }
 
+
+    // detect threat by color if king is moved to new address
+    public IThreat? DetectThreat(int color, IChessMove? move)
+    {
+        {
+            (string, string)? projection = null;
+            if (move is not null)
+            {
+                projection = (move.From.Address, move.To.Address);
+            }
+            var king = Kings[color];
+            var address = king.Address;
+            if (move?.From.Piece is not null)
+            {
+                // check if active player king is threatened after moving its position
+                if (move.From.Piece.Type == PieceType.K && move.From.Piece.Color == color)
+                {
+                    address = move.To.Address;
+                }
+            }
+            var kingsSquare = GetSquareByAddress(address);
+            var _i = color == 0 ? 1 : 0;
+            var squares = GetSquaresByArmy(_i);
+            foreach (var square in squares)
+            {
+                try
+                {
+                    ValidateMove(new Move(square, kingsSquare), _i, projection);
+                    return new Threat(square, king);
+                }
+                catch (Exception)
+                {
+                    // Console.WriteLine($"{square.Piece?.Type} at {square.Address}: {e.Message}");
+                }
+            }
+            // no threat
+            return null;
+        }
+    }
+
     // checks move against game rules at the board and piece level.
-    // Does not account for check. Check is evaluated separately in the game scope.
-    public void ValidateMove(IChessMove move, int activeColor)
+    // optional projection to validate against hypothetical move
+    public void ValidateMove(IChessMove move, int activeColor, (string from, string to)? projection)
     {
 
         if (move.From.Address == move.To.Address)
@@ -297,13 +334,12 @@ public class Board : IChessboard
         MoveIsWithinBounds(move.To);
 
 
-        CheckCollision(move);
-
+        CheckCollision(move, projection);
 
     }
 
 
-    private void CheckCollision(IChessMove move)
+    private void CheckCollision(IChessMove move, (string from, string to)? projection)
     {
 
         if (move.Type == MoveType.Wild)
@@ -320,9 +356,15 @@ public class Board : IChessboard
         {
             foreach (var square in squares)
             {
-                if (square.Piece is not null)
+                if (projection?.from == square.Address)
                 {
-                    throw new CollisionError($"blocked by {square.Piece.Type} at {square.Address}", move.From.Piece!, square);
+                    // this square is projected to be empty when the validated move occurs.
+                    continue;
+                }
+                if (square.Piece is not null || projection?.to == square.Address)
+                {
+
+                    throw new CollisionError($"blocked by {square.Piece!.Type} at {square.Address}", move.From.Piece!, square);
                 }
             }
         }

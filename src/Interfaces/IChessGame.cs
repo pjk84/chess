@@ -14,21 +14,20 @@ public interface IChessGame
 
     public IChessPiece? SelectedPiece { get; }
 
-    public bool WithAi { get; }
+    public bool Ai { get; }
 
     public bool IsPlaying { get; }
 
 
     public Piece? Promotee { get; set; }
 
-    public bool[] Castled { get; }
 
     public bool ShowOwnArmy { get; set; }
 
     public List<Action> Actions { get; }
 
     public void PrintBoard();
-    public void PrintTextBox(string? msg);
+    public void PrintText(string? msg);
 
     public string PrintTurns();
 

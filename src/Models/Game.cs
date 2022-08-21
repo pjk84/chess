@@ -5,10 +5,21 @@ using System.Text.Json;
 
 namespace Chess.Models;
 
+public class CursusLib : CursesLibraryNames
+{
+    // public override bool ReplaceWindowsDefaults => true;
+    // public override bool ReplaceLinuxDefaults => true;
+    public override bool ReplaceOSXDefaults => true;
+    // public override List<string> NamesWindows => new List<string> { "abc.dll", "xyz.dll" };
+    // public override List<string> NamesLinux => new List<string> { "abc.1.5.so", "abc.so" };
+    public override List<string> NamesOSX => new List<string> { "libncurses.dylib" };
+}
+
 
 public class Game : IChessGame
 {
     private IntPtr _win;
+    private IntPtr _main;
     private IntPtr _textBox;
 
     public bool ShowOwnArmy { get; set; }
@@ -23,14 +34,13 @@ public class Game : IChessGame
     private int _activeColor = 0;
     private int _playerColor;
 
-    public bool WithAi { get; private set; } = true;
+    public bool Ai { get; private set; } = true;
 
     private int _presentation = 1;
 
-    private int _difficulty = 0;
+    private int _mode = 1;
 
     private IThreat? _threat = null;
-    public bool[] Castled { get; } = { false, false };
 
     public int? CheckMate { get; private set; } = null;
 
@@ -46,6 +56,8 @@ public class Game : IChessGame
         Setup();
     }
 
+
+
     public void Setup()
     {
         IsPlaying = true;
@@ -54,7 +66,8 @@ public class Game : IChessGame
         _activeColor = 0;
 
         _win = NCurses.InitScreen();
-        _textBox = NCurses.NewWindow(5, 56, 28, 1);
+        _main = NCurses.SubWindow(_win, 29, 56, 0, 0);
+        _textBox = NCurses.SubWindow(_win, 5, 56, 29, 1);
         // NCurses.MoveWindow(_textBox, 5, 5);
         NCurses.StartColor();
         NCurses.CBreak();
@@ -78,7 +91,7 @@ public class Game : IChessGame
     private Board NewBoard()
     {
         {
-            using (StreamReader r = new StreamReader("start.json"))
+            using (StreamReader r = new StreamReader("test.json"))
             {
                 return new Board(r.ReadToEnd());
             }
@@ -195,11 +208,11 @@ public class Game : IChessGame
         }
         // revert last move
         var lastAction = Actions.Last();
-        // if (lastTurn.castling.HasValue)
-        // {
-        //     RevertCastling();
-        //     return;
-        // }
+        if (lastAction.Castling)
+        {
+            RevertCastling();
+            return;
+        }
         if (lastAction.Move is not null)
         {
             lastAction.Move.Revert();
@@ -216,7 +229,6 @@ public class Game : IChessGame
         Actions.RemoveAt(Actions.Count() - 1);
         if (switchTurns)
         {
-
             SwitchTurns();
         }
 
@@ -237,7 +249,8 @@ public class Game : IChessGame
         return new Move(_board.GetSquareByAddress(addresses[0]), _board.GetSquareByAddress(addresses[1]));
     }
 
-    public void PrintTextBox(string? msg)
+
+    public void PrintText(string? msg)
     {
         NCurses.ClearWindow(_textBox);
         string? lastMove = null;
@@ -255,16 +268,22 @@ public class Game : IChessGame
         {
             NCurses.MoveWindowAddString(_textBox, 0, 0, $"K of player {(_threat.King.Color == 0 ? "White" : "Black")} is threatened");
         }
-        var txt = msg ?? $"{(_activeColor == 0 ? "White" : "Black")} is playing{(lastMove is not null ? $", last move was {lastMove}" : null)}";
-        NCurses.MoveWindowAddString(_textBox, 1, 0, txt);
+        var str = $"{(Ai ? "ai on" : "ai off")}";
+        str += $", {(_activeColor == 0 ? "White" : "Black")} is playing";
+        NCurses.MoveWindowAddString(_textBox, 1, 0, str);
+        NCurses.MoveWindowAddString(_textBox, 2, 0, $"{(lastMove is not null ? $"last move was {lastMove}" : null)}");
+        if (msg is not null)
+        {
+            NCurses.MoveWindowAddString(_textBox, 3, 0, msg);
+        }
         NCurses.WindowRefresh(_textBox);
 
     }
     public void PrintBoard()
     {
-
+        NCurses.ClearWindow(_main);
         NCurses.GetMaxYX(_win, out int screenHeight, out int screenWidth);
-        // NCurses.ClearWindow(_win);
+        NCurses.ClearWindow(_main);
         if (screenHeight < _board.BoardHeight || screenWidth < _board.boardWidth)
         {
             NCurses.ResizeTerminal(_board.BoardHeight, _board.boardWidth);
@@ -272,7 +291,7 @@ public class Game : IChessGame
 
         _board.PrintBoard(_win, _activeColor, CursorToAddress(), SelectedPiece, ShowOwnArmy);
         // }
-        NCurses.WindowRefresh(_win);
+        NCurses.WindowRefresh(_main);
     }
 
     public string PrintTurns()
@@ -289,30 +308,22 @@ public class Game : IChessGame
 
     public void ToggleAi()
     {
-        WithAi = !WithAi;
-        if (WithAi && _activeColor != _playerColor)
+        Ai = !Ai;
+        if (Ai && _activeColor != _playerColor)
         {
             AiMove();
         }
-        PrintTextBox($"AI {(WithAi ? "on" : "off")}");
     }
 
     public void SwitchTurns()
     {
         _activeColor = 1 - _activeColor;
-        if (!WithAi)
+        if (!Ai)
         {
             _playerColor = 1 - _playerColor;
         }
     }
 
-    public List<IChessMove> OrderMoves(List<IChessMove> moves)
-    {
-        List<IChessMove> ordered = new List<IChessMove>() { };
-        var captures = moves.Where(m => m.To.Piece is not null);
-        var passive = moves.Where(m => m.To.Piece is null);
-        return captures.Concat(passive).ToList();
-    }
 
     private List<IChessMove> RandomizeMoves(List<IChessMove> moves)
     {
@@ -321,23 +332,38 @@ public class Game : IChessGame
         return moves.OrderBy(m => r.Next(0, max)).ToList();
     }
 
-    private List<IChessMove> GetAllPossibleMoves()
+    private List<IChessMove> GetValidAiMoves()
     {
         var aiColor = 1 - _playerColor;
-
         List<IChessMove> validMoves = new List<IChessMove> { };
-        var groups = _board.groupSquares();
+        var groups = _board.GroupSquares();
         var army = groups.Where(g => g.Key == aiColor).First().ToList();
         var enemy = groups.Where(g => g.Key == _playerColor).First().ToList();
         var empty = groups.Where(g => g.Key is null).First().ToList();
         foreach (var square in army)
         {
+            // move to empty square
             foreach (var e in empty)
             {
                 var move = new Move(square, e);
                 try
                 {
-                    _board.ValidateMove(move, aiColor);
+                    _board.ValidateMove(move, aiColor, null);
+                    validMoves.Insert(0, move);
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            // capture enemy
+            foreach (var e in enemy)
+            {
+                var move = new Move(square, e);
+                try
+                {
+                    _board.ValidateMove(move, aiColor, null);
                     validMoves.Insert(0, move);
                 }
                 catch
@@ -346,44 +372,42 @@ public class Game : IChessGame
                 }
             }
         }
-        if (_difficulty == 0)
-        {
-            return RandomizeMoves(validMoves);
-        }
         return validMoves;
+    }
+
+    private IChessMove GetBestMove(List<IChessMove> moves)
+    {
+        if (_mode == 0)
+        {
+            // random
+            return RandomizeMoves(moves).ElementAt(0);
+        }
+        if (_mode == 1)
+        {
+            // agressive
+            var captures = from move in moves where move.To.Piece is not null select move;
+            if (captures.Any())
+            {
+                var c = RandomizeMoves(captures.ToList());
+                // score attack options
+                return c.First();
+            }
+            return RandomizeMoves(moves).First();
+
+        }
+        return moves.ElementAt(0);
     }
 
     public void AiMove()
     {
+        IChessMove? move = null;
         var aiColor = 1 - _playerColor;
         if (_activeColor != aiColor)
         {
             return;
         }
 
-        void tryMoves(List<IChessMove> moves)
-        {
-            foreach (var move in moves)
-            {
-                Actions.Add(new Action(move.From.Piece!, move, null, null, false));
-                _board.MakeMove(move);
-                var threat = DetectThreat();
-                if (threat is not null && threat.King.Color == aiColor)
-                {
-                    // new threat
-                    UndoAction(false);
-                    continue;
-                }
-                // no threat or threat effectively resolved. continue
-                SwitchTurns();
-                return;
-            }
-            // could not resolve threat. check mate. human player wins.
-            // throw new Exception("errrr");
-            CheckMate = aiColor;
-        }
-
-        // resolve check if checked
+        // resolve threat if ai king is threatened
         if (_threat is not null && _threat.King.Color == aiColor)
         {
             //get all squares between the threat and the king
@@ -392,7 +416,7 @@ public class Game : IChessGame
 
             slice.Add(_threat.From);
 
-            var army = _board.getSquaresByArmy(aiColor);
+            var army = _board.GetSquaresByArmy(aiColor);
             List<IChessMove> options = new List<IChessMove> { };
             foreach (var square in slice)
             {
@@ -400,8 +424,9 @@ public class Game : IChessGame
                 {
                     try
                     {
-                        var move = new Move(position, square);
-                        _board.ValidateMove(move, aiColor);
+                        move = new Move(position, square);
+                        _board.ValidateMove(move, aiColor, null);
+                        _board.DetectThreat(aiColor, move);
                         options.Add(move);
                     }
                     catch
@@ -416,37 +441,45 @@ public class Game : IChessGame
                 CheckMate = aiColor;
                 return;
             }
-            var moves = OrderMoves(options);
-
-            tryMoves(moves);
-            return;
+            move = GetBestMove(options);
+        }
+        else
+        {
+            move = GetBestMove(GetValidAiMoves());
         }
 
-        tryMoves(GetAllPossibleMoves());
+        var piece = move.From.Piece!;
 
+        var capture = move.To.Piece is not null ? new Capture(move.To.Piece, move.To.Address) : null;
+
+        Actions.Add(new Action(piece, move, capture, null, false));
+
+        _board.MakeMove(move);
+
+        SwitchTurns();
         // computer move
 
     }
 
     private void RevertCastling()
     {
-        // var lastMove = Events.Last();
-        // var color = lastMove.Piece.Color;
-        // var castlingMoves = from e in Events
-        //                     where e.Piece.Color == color && e.castling.HasValue
-        //                     select e;
-        // var kingStartingSquare = _board.GetSquareByAddress(color == 0 ? "e1" : "e8");
-        // var kingCurrentSquare = _board.GetSquareByAddress(_board.Kings[color].Address);
-        // _board.MakeMove(kingCurrentSquare, kingStartingSquare, kingCurrentSquare.Piece!);
+        var lastMove = Actions.Last();
+        var color = lastMove.Piece.Color;
+        foreach (var action in Actions.ToList())
+        {
+            if (!(action.Castling && action.Piece.Color == _activeColor))
+            {
+                continue;
+            }
+            action.Move!.Revert();
+            _board.MakeMove(action.Move);
+            Actions.Remove(action);
+        }
     }
 
     // attempt castling of rook at address
     public void Castle(string address)
     {
-        if (Castled[_activeColor])
-        {
-            throw new Exception("Already castled. Each side may only castle once.");
-        }
         var rookSquare = _board.GetSquareByAddress(address);
         var rook = rookSquare.Piece;
         if (rook?.Type != PieceType.R)
@@ -470,80 +503,39 @@ public class Game : IChessGame
 
         // basic validation
         var rookMove = new Move(rookSquare, _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction]);
-        _board.ValidateMove(rookMove, _activeColor);
+        _board.ValidateMove(rookMove, _activeColor, null);
 
-        if (rookSquare.Rank != kingSquare.Rank)
-        {
-            throw new Exception("Castling only allowed on same rank");
-        }
-        string newAddress;
         IChessMove? move = null;
         Square? to;
+        Square? from;
         var steps = Enumerable.Range(1, 2);
-        // move king
+
+        // validate king move
         foreach (var step in steps)
         {
-            var from = _board.Squares[kingSquare.Rank][kingSquare.File + (step - 1) * direction];
+            from = _board.Squares[kingSquare.Rank][kingSquare.File + (step - 1) * direction];
             to = _board.Squares[kingSquare.Rank][kingSquare.File + step * direction];
-            newAddress = $"{from.Address}-{to.Address}";
             move = new Move(from, to);
-            _board.MakeMove(move);
-            Actions.Add(new Action(king, move, null, null, true));
-            var threat = DetectThreat();
+
+            var threat = _board.DetectThreat(_activeColor, move);
             if (threat is not null)
             {
-                if (threat.King.Color == _activeColor)
-                {
-                    foreach (var i in Enumerable.Range(0, step))
-                    {
-                        UndoAction(false);
-                    }
-                    throw new Exception($"Castling under check not allowed. K checked by {threat.From.Piece!.Type} at {threat.From.Address} ");
-                }
-                _board.Kings[_activeColor].Address = to.Address;
+                throw new Exception($"Castling under check not allowed. K checked by {threat.From.Piece!.Type} at {threat.From.Address} ");
             }
-
         }
+
+        // move king
+        from = _board.Squares[kingSquare.Rank][kingSquare.File];
+        to = _board.Squares[kingSquare.Rank][kingSquare.File + 2 * direction];
+        move = new Move(from, to);
+        _board.MakeMove(move);
+        Actions.Add(new Action(king, move, null, null, true));
+
         // move rook
         to = _board.Squares[kingSquare.Rank][kingSquare.File + 1 * direction];
         move = new Move(rookSquare, to);
         _board.MakeMove(move);
         Actions.Add(new Action(rook, move, null, null, true));
-
-        Castled[_activeColor] = true;
-    }
-
-    // check if king at either side is checked
-    // if active side king is checked the move is reverted.
-    public IThreat? DetectThreat()
-    {
-        int n = 0;
-        foreach (var i in Enumerable.Range(0, 2))
-        {
-            var king = _board.Kings[i];
-            var kingsSquare = _board.GetSquareByAddress(_board.Kings[i].Address);
-            var _i = i == 0 ? 1 : 0;
-            var squares = _board.getSquaresByArmy(_i);
-            foreach (var square in squares)
-            {
-                try
-                {
-                    _board.ValidateMove(new Move(square, kingsSquare), _i);
-                    var threat = new Threat(square, king);
-                    _threat = threat;
-                    return threat;
-                }
-                catch (Exception)
-                {
-                    // Console.WriteLine($"{square.Piece?.Type} at {square.Address}: {e.Message}");
-                }
-            }
-
-            n++;
-        }
-        // kings not threatened
-        _threat = null;
-        return null;
 
     }
 
@@ -551,6 +543,7 @@ public class Game : IChessGame
     {
 
     }
+
 
     public void DetectPromotion(IChessMove move)
     {
@@ -593,7 +586,14 @@ public class Game : IChessGame
             var piece = parsedMove.From.Piece!;
             try
             {
-                _board.ValidateMove(parsedMove, _activeColor);
+                _board.ValidateMove(parsedMove, _activeColor, null);
+                // check if the player would be theatened after the move.
+                // separated from validateMove as this is used as a depedency.
+                var threat = _board.DetectThreat(_playerColor, parsedMove);
+                if (threat is not null)
+                {
+                    throw new CheckError(threat);
+                }
                 if (parsedMove.To.Piece is not null)
                 {
                     // capture at destination square
@@ -622,23 +622,26 @@ public class Game : IChessGame
                     e.Square.Update(null);
                 }
                 // castling
-                if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
+                else if (e.Mover.Type == PieceType.R && blocker.Type == PieceType.K)
                 {
                     // ..
                 }
-                throw new Exception(e.Message);
+                else
+                {
+                    throw new Exception(e.Message);
+                }
             }
+
+            // moved passed validation. Execute move
             _board.MakeMove(parsedMove);
+
             Actions.Add(new Action(piece, parsedMove, capture, null, false));
 
-            var threat = DetectThreat();
-            if (threat is not null && threat.King.Color == _playerColor)
-            {
-                UndoAction(false);
-                throw new CheckError(threat);
-            }
-
+            // check if the new move advanced a pawn to the furhest rank. 
             DetectPromotion(parsedMove);
+
+            // check if the enemy is threatened after the new move.
+            _threat = _board.DetectThreat(1 - _playerColor, null);
 
             SwitchTurns();
 
@@ -651,7 +654,7 @@ public class Game : IChessGame
         catch (CheckError e)
         {
             DetectCheckMate();
-            throw new Exception($"illegal move.\n{(e.Threat.King.Color == 0 ? "wK" : "bK")} checked by {e.Threat.From.Piece!.Type} at {e.Threat.From.Address} ");
+            throw new Exception($"illegal move!\n{(e.Threat.King.Color == 0 ? "wK" : "bK")} threatened by {e.Threat.From.Piece!.Type} at {e.Threat.From.Address} ");
         }
         catch (MoveParseError)
         {
@@ -675,8 +678,6 @@ public class Game : IChessGame
 
 
 public record struct SaveGame(Square[][] Squares, List<Action> Actions, int ActiveColor) { }
-
-
 
 
 public class Threat : IThreat

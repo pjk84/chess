@@ -1,37 +1,28 @@
 ﻿using Chess.Models;
-
 using Chess.Interfaces;
+using System.Text.Json;
+
 class Demo
 {
 
     static void Main()
     {
-        string? inp = null;
-        string? msg = null;
+        ConsoleKeyInfo e;
         IChessGame game = new Game();
 
-        void print(string? msg)
+        void print()
         {
             game.PrintBoard();
-            printText(msg);
-
+            printText(null);
         }
 
         void printText(string? msg)
         {
-            game.PrintTextBox(msg);
+            game.PrintText(msg);
         }
 
 
-        // Console.WriteLine("commands:");
-        // Console.WriteLine("moves  --> show sequence of moves");
-        // Console.WriteLine("save  --> save game");
-        // Console.WriteLine("load  --> load game");
-        // Console.WriteLine("reset --> reset game");
-        // Console.WriteLine("exit  --> quit game");
-        // Console.WriteLine(game.PrintBoard());
-
-        print(null);
+        print();
         Console.CancelKeyPress += (object? sender, ConsoleCancelEventArgs e) =>
                                   {
                                       if (e.SpecialKey == ConsoleSpecialKey.ControlC)
@@ -43,43 +34,36 @@ class Demo
         System.ConsoleKey[] arrowKeys = { ConsoleKey.RightArrow, ConsoleKey.LeftArrow, ConsoleKey.UpArrow, ConsoleKey.DownArrow };
         while (game.IsPlaying)
         {
-            if (game.WithAi)
-            {
-                game.AiMove();
-                print(null);
-            }
 
-            var e = Console.ReadKey();
+
+            e = Console.ReadKey();
 
             if (arrowKeys.Contains(e.Key))
             {
                 game.SetCursor(e.Key);
+                game.PrintBoard();
             }
             if (e.Key == ConsoleKey.Q)
             {
                 printText("quit y/n? ");
-                var done = false;
-                while (!done)
+                while (true)
                 {
-                    var k = Console.ReadKey();
-                    if (k.Key == ConsoleKey.Y)
+                    e = Console.ReadKey();
+                    if (e.Key == ConsoleKey.Y)
                     {
                         game.Quit();
                         return;
                     }
-                    if (k.Key == ConsoleKey.N)
+                    if (e.Key == ConsoleKey.N)
                     {
-                        done = true;
-                        continue;
+                        break;
                     }
                 }
-
             }
             if (e.Key == ConsoleKey.Spacebar)
             {
                 try
                 {
-                    msg = null;
                     if (game.PieceSelectedAt is not null)
                     {
                         game.MovePiece();
@@ -87,24 +71,42 @@ class Demo
                     else
                     {
                         game.SelectPiece();
-                        printText("Piece selected.\nPress space to release. \npress escape to cancel");
-                        continue;
+                        while (true)
+                        {
+                            e = Console.ReadKey();
+                            if (e.Key == ConsoleKey.Escape)
+                            {
+                                game.ReturnPiece();
+                                break;
+                            }
+                            if (e.Key == ConsoleKey.Spacebar)
+                            {
+                                game.MovePiece();
+                                print();
+                                if (game.Ai)
+                                {
+                                    game.AiMove();
+                                    print();
+                                }
+                                break;
+                            }
+                            if (arrowKeys.Contains(e.Key))
+                            {
+                                game.SetCursor(e.Key);
+                                game.PrintBoard();
+                                continue;
+                            }
+                        }
+
                     }
                 }
                 catch (Exception err)
                 {
-                    msg = err.Message;
+                    printText(err.Message);
+                    game.PrintBoard();
                 }
             }
-            if (e.Key == ConsoleKey.Escape)
-            {
-                if (game.PieceSelectedAt is not null)
-                {
-                    game.ReturnPiece();
-                    print("Move canceled.\npiece returned to original position");
-                    continue;
-                }
-            }
+
             if (e.Key == ConsoleKey.Enter)
             {
                 Console.WriteLine("asdas: ");
@@ -117,23 +119,24 @@ class Demo
             if (e.Key == ConsoleKey.A)
             {
                 game.ToggleAi();
-                continue;
             }
             if (e.Key == ConsoleKey.Tab)
             {
                 game.ShowOwnArmy = !game.ShowOwnArmy;
+                print();
+
             }
+
             if (e.Key == ConsoleKey.Backspace)
             {
                 try
                 {
                     game.UndoAction();
-                    print($"move reverted\nfound {game.Actions.Count()} more move(s) to undo");
-                    continue;
+                    print();
                 }
                 catch (Exception err)
                 {
-                    msg = err.Message;
+                    printText(err.Message);
                 }
             }
 
@@ -339,8 +342,7 @@ class Demo
             //     {
             //         msg = $"{e.Message}";
             //     }
-            print(msg);
-            msg = null;
+            // msg = null;
         }
 
     }

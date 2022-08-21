@@ -23,7 +23,6 @@ class CheckError : Exception
     public CheckError(IThreat threat)
     {
         Threat = threat;
-
     }
 }
 

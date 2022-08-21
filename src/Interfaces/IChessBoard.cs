@@ -1,4 +1,3 @@
-using Chess.Models;
 
 #nullable enable
 namespace Chess.Interfaces;
@@ -15,10 +14,11 @@ public interface IChessboard
 
 
     public void MakeMove(IChessMove move);
-    public void ValidateMove(IChessMove move, int activeColor);
+    public void ValidateMove(IChessMove move, int activeColor, (string from, string to)? projection);
 
     public string Serialize();
 
+    public IThreat? DetectThreat(int color, IChessMove? move);
 
     public IChessSquare GetSquareByAddress(string address);
 
@@ -26,8 +26,8 @@ public interface IChessboard
 
     public List<IChessSquare> Slice(IChessMove move);
 
-    public Square[] getSquaresByArmy(int color);
-    public List<IGrouping<int?, Square>> groupSquares();
+    public Square[] GetSquaresByArmy(int color);
+    public List<IGrouping<int?, Square>> GroupSquares();
 
 
 }
